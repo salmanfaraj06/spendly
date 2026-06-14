@@ -9,6 +9,8 @@ const outfit = Outfit({
   display: "swap",
 });
 
+export const preferredRegion = "syd1";
+
 export const metadata: Metadata = {
   title: "Finance Tracker",
   description: "Your expenses, made simple.",
