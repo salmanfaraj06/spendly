@@ -3,6 +3,7 @@ import { ProfileButton } from "@/components/ProfileButton";
 import { InsightsCard } from "@/components/InsightsCard";
 import { TrendChart, CategoryBars } from "@/components/charts";
 import { getInsights } from "@/lib/insights-service";
+import { getDueOccurrences } from "@/lib/recurrence-service";
 import { lkr, lkrCompact, formatDate } from "@/lib/format";
 import { requireUserId } from "@/lib/auth";
 import {
@@ -23,7 +24,7 @@ export default async function HomePage() {
   const userId = await requireUserId();
   const cycle = await getCurrentCycleView(userId);
 
-  const [totalBalance, totals, today, txs, spend, budgetReport, categories, prevCycle, trend] =
+  const [totalBalance, totals, today, txs, spend, budgetReport, categories, prevCycle, trend, dueOccurrences] =
     await Promise.all([
       getTotalBalance(userId),
       getCycleTotals(userId, cycle.id),
@@ -34,6 +35,7 @@ export default async function HomePage() {
       getCategories(userId),
       previousCycleOf(userId, cycle.startDate),
       getCycleTrend(userId, 7),
+      getDueOccurrences(userId),
     ]);
 
   const profile = await getProfile(userId);
@@ -101,6 +103,18 @@ export default async function HomePage() {
         </Card>
       ) : (
         <>
+          {dueOccurrences.length > 0 && (
+            <a href="/recurring/due">
+              <Card className="flex items-center justify-between border-accent/30 bg-accent/10" delay={0.05}>
+                <div>
+                  <p className="text-sm font-semibold">{dueOccurrences.length} recurring due</p>
+                  <p className="text-xs text-text-muted">Review, post, edit, or skip them</p>
+                </div>
+                <span className="text-text-dim">›</span>
+              </Card>
+            </a>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <Card delay={0.06}>
               <p className="text-xs text-text-muted">Today's Spend</p>

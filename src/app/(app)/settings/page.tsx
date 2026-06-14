@@ -33,6 +33,13 @@ export default async function SettingsPage() {
         </Card>
       </Link>
 
+      <Link href="/recurring">
+        <Card className="flex items-center justify-between">
+          <span className="text-sm font-semibold">Manage Recurring</span>
+          <span className="text-text-dim">›</span>
+        </Card>
+      </Link>
+
       <ExportPanel />
     </>
   );

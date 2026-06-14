@@ -72,6 +72,39 @@ export async function getCategoriesWithCounts(userId: string) {
   }));
 }
 
+export async function getRecurringTemplates(userId: string) {
+  const [rows, accounts, categories] = await Promise.all([
+    prisma.recurringTransaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.account.findMany({ where: { userId } }),
+    prisma.category.findMany({ where: { userId } }),
+  ]);
+  const accountById = new Map(accounts.map((a) => [a.id, a]));
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    amount: num(r.amount),
+    accountId: r.accountId,
+    accountName: accountById.get(r.accountId)?.name ?? "Missing account",
+    destinationAccountId: r.destinationAccountId,
+    destinationAccountName: r.destinationAccountId
+      ? accountById.get(r.destinationAccountId)?.name ?? null
+      : null,
+    categoryId: r.categoryId,
+    categoryName: r.categoryId ? categoryById.get(r.categoryId)?.name ?? null : null,
+    categoryIcon: r.categoryId ? categoryById.get(r.categoryId)?.icon ?? null : null,
+    notes: r.notes ?? "",
+    frequency: r.frequency,
+    dayOfMonth: r.dayOfMonth,
+    weekday: r.weekday,
+    anchorDate: r.anchorDate.toISOString().slice(0, 10),
+    active: r.active,
+  }));
+}
+
 /** Transactions for one cycle, newest first, with category + account joined. */
 export async function getTransactions(userId: string, cycleId: string) {
   const rows = await prisma.transaction.findMany({

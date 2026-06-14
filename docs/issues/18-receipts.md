@@ -9,7 +9,7 @@ Attach a photo to a transaction. Private per-user Supabase Storage bucket, clien
 
 ## Acceptance criteria
 - [ ] Private Supabase Storage bucket + per-user access policies
-- [ ] `Transaction.receiptPath` column
+- [x] `Transaction.receiptPath` column
 - [ ] Attach control in add/edit sheet; image compressed before upload
 - [ ] Full-screen receipt viewer; remove/replace
 - [ ] Receipts private to the owner

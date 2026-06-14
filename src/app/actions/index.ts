@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth";
 import { ensureCycleForDate, changeCycleStartDay } from "@/lib/cycle-service";
+import {
+  confirmDueOccurrence as confirmDueOccurrenceService,
+  skipDueOccurrence as skipDueOccurrenceService,
+  type DueOccurrencePostInput,
+} from "@/lib/recurrence-service";
 
 // ── Accounts ────────────────────────────────────────────────────────────
 export async function createAccount(input: {
@@ -125,6 +130,13 @@ type TxInput = {
   destinationAccountId?: string | null;
 };
 
+type RecurringInput = TxInput & {
+  frequency: "MONTHLY" | "WEEKLY";
+  dayOfMonth?: number | null;
+  weekday?: number | null;
+  anchorDate: string;
+};
+
 export async function createTransaction(input: TxInput) {
   const userId = await requireUserId();
   const date = new Date(`${input.date}T00:00:00.000Z`);
@@ -194,6 +206,85 @@ export async function deleteTransaction(id: string) {
   revalidatePath("/");
   revalidatePath("/accounts");
   revalidatePath("/budget");
+}
+
+// ── Recurring Transactions ──────────────────────────────────────────────
+function recurringData(input: RecurringInput) {
+  if (input.type === "TRANSFER" && !input.destinationAccountId) {
+    throw new Error("Transfer requires a destination account");
+  }
+  if (input.frequency === "MONTHLY" && (!input.dayOfMonth || input.dayOfMonth < 1 || input.dayOfMonth > 28)) {
+    throw new Error("Monthly recurring transactions need a day from 1 to 28");
+  }
+  if (input.frequency === "WEEKLY" && (input.weekday == null || input.weekday < 0 || input.weekday > 6)) {
+    throw new Error("Weekly recurring transactions need a weekday");
+  }
+
+  return {
+    type: input.type,
+    amount: input.amount,
+    accountId: input.accountId,
+    destinationAccountId: input.type === "TRANSFER" ? input.destinationAccountId : null,
+    categoryId: input.type === "TRANSFER" ? null : input.categoryId ?? null,
+    notes: input.notes ?? "",
+    frequency: input.frequency,
+    dayOfMonth: input.frequency === "MONTHLY" ? input.dayOfMonth : null,
+    weekday: input.frequency === "WEEKLY" ? input.weekday : null,
+    anchorDate: new Date(`${input.anchorDate}T00:00:00.000Z`),
+  };
+}
+
+export async function createRecurringTransaction(input: RecurringInput) {
+  const userId = await requireUserId();
+  await prisma.recurringTransaction.create({
+    data: { userId, ...recurringData(input) },
+  });
+  revalidatePath("/recurring");
+  revalidatePath("/recurring/due");
+  revalidatePath("/");
+}
+
+export async function updateRecurringTransaction(id: string, input: RecurringInput) {
+  const userId = await requireUserId();
+  await prisma.recurringTransaction.updateMany({
+    where: { id, userId },
+    data: recurringData(input),
+  });
+  revalidatePath("/recurring");
+  revalidatePath("/recurring/due");
+  revalidatePath("/");
+}
+
+export async function deleteRecurringTransaction(id: string) {
+  const userId = await requireUserId();
+  await prisma.recurringTransaction.deleteMany({ where: { id, userId } });
+  revalidatePath("/recurring");
+  revalidatePath("/recurring/due");
+  revalidatePath("/");
+}
+
+export async function confirmRecurringOccurrence(
+  recurringTransactionId: string,
+  dueDate: string,
+  input?: DueOccurrencePostInput,
+) {
+  const userId = await requireUserId();
+  await confirmDueOccurrenceService(userId, recurringTransactionId, dueDate, input);
+  revalidatePath("/recurring/due");
+  revalidatePath("/transactions");
+  revalidatePath("/accounts");
+  revalidatePath("/budget");
+  revalidatePath("/");
+}
+
+export async function skipRecurringOccurrence(
+  recurringTransactionId: string,
+  dueDate: string,
+) {
+  const userId = await requireUserId();
+  await skipDueOccurrenceService(userId, recurringTransactionId, dueDate);
+  revalidatePath("/recurring/due");
+  revalidatePath("/");
 }
 
 // ── Budgets ──────────────────────────────────────────────────────────────
