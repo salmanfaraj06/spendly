@@ -39,10 +39,6 @@ export type DueOccurrencePostInput = {
 };
 
 export async function getDueOccurrences(userId: string, now = new Date()): Promise<DueOccurrence[]> {
-  const current = await currentCycle(userId);
-  const previous = await previousCycleOf(userId, current.startDate);
-  const windowEnd = tomorrowUtc(now);
-
   const templates = await prisma.recurringTransaction.findMany({
     where: { userId, active: true },
     orderBy: { createdAt: "asc" },
@@ -50,6 +46,12 @@ export async function getDueOccurrences(userId: string, now = new Date()): Promi
       occurrences: true,
     },
   });
+  if (templates.length === 0) return [];
+
+  const current = await currentCycle(userId);
+  const previous = await previousCycleOf(userId, current.startDate);
+  const windowEnd = tomorrowUtc(now);
+
   const [accounts, categories] = await Promise.all([
     prisma.account.findMany({ where: { userId } }),
     prisma.category.findMany({ where: { userId } }),
