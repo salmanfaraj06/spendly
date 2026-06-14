@@ -29,7 +29,8 @@ Each Transaction is linked to an Account:
 - Expense → debited from one Account
 - Transfer → debited from a **Source Account**, credited to a **Destination Account**
 
-No recurring transactions — all entries are manual.
+### Recurring Transaction
+A template that describes a Transaction expected to repeat on a schedule (e.g. "Salary, monthly, day 25"; "Netflix, monthly, day 3"). It does **not** post automatically. When an occurrence falls due, the app surfaces it as a **Due Occurrence** — a pre-filled, one-tap "confirm to post" suggestion the user can confirm, edit before posting, or skip. Only on confirmation does it become a real Transaction. This preserves the principle that the ledger only ever contains user-confirmed entries.
 
 ### Account
 A named financial container with a tracked balance (e.g. "Commercial Bank Savings", "Cash Wallet", "Credit Card"). User-defined. Balance updates automatically as Transactions are recorded.
@@ -43,6 +44,9 @@ Each Category has a name, icon, and color.
 
 ### Budget
 An allocation of a spending limit to a Category. Defined as a **Budget Template** (persists across cycles) and materialises as a **Cycle Budget** each Finance Cycle. Tracks consumption by Expense Transactions in that Category during the cycle. Templates carry forward automatically; a specific cycle's budget can be overridden without affecting the template.
+
+### Insight
+A short, plain-language observation about the user's money for a Finance Cycle (e.g. "You're pacing 12% under budget", "Dining is your fastest-growing category"). The underlying **facts** (pacing %, top movers, comparisons) are computed deterministically by the app from existing data; an external language model is used only to phrase those facts into friendly prose. The model never produces or alters a number — it only rewrites verified facts. Insights are cached per cycle and regenerated on demand.
 
 ### Goal
 A monthly savings or investment target (e.g. "Save LKR 50,000 this cycle"). No dedicated account or pot — progress is measured against the user's net balance change within the Finance Cycle. Goals can be reviewed month-by-month and rolled up into an annual view.

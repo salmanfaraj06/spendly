@@ -1,11 +1,11 @@
 import { ScreenHeader } from "@/components/ui";
 import { CategoriesView } from "@/components/CategoriesView";
 import { requireUserId } from "@/lib/auth";
-import { getCategories } from "@/lib/queries";
+import { getCategoriesWithCounts } from "@/lib/queries";
 
 export default async function CategoriesPage() {
   const userId = await requireUserId();
-  const categories = await getCategories(userId);
+  const categories = await getCategoriesWithCounts(userId);
 
   return (
     <>
@@ -17,6 +17,7 @@ export default async function CategoriesPage() {
           icon: c.icon,
           color: c.color,
           isDefault: c.isDefault,
+          txCount: c.txCount,
         }))}
       />
     </>

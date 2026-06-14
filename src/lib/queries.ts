@@ -33,6 +33,9 @@ export async function getAccounts(userId: string) {
     color: a.color,
     openingBalance: num(a.openingBalance),
     balance: accountBalance(a.id, num(a.openingBalance), balTxs),
+    txCount: txs.filter(
+      (t) => t.accountId === a.id || t.destinationAccountId === a.id,
+    ).length,
   }));
 }
 
@@ -41,11 +44,32 @@ export async function getTotalBalance(userId: string) {
   return accounts.reduce((s, a) => s + a.balance, 0);
 }
 
+export async function getProfile(userId: string) {
+  return prisma.profile.findUnique({ where: { userId } });
+}
+
 export async function getCategories(userId: string) {
   return prisma.category.findMany({
     where: { userId },
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
   });
+}
+
+/** Categories with their transaction counts — for the manage screen. */
+export async function getCategoriesWithCounts(userId: string) {
+  const cats = await prisma.category.findMany({
+    where: { userId },
+    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    include: { _count: { select: { transactions: true } } },
+  });
+  return cats.map((c) => ({
+    id: c.id,
+    name: c.name,
+    icon: c.icon,
+    color: c.color,
+    isDefault: c.isDefault,
+    txCount: c._count.transactions,
+  }));
 }
 
 /** Transactions for one cycle, newest first, with category + account joined. */
@@ -65,6 +89,65 @@ export async function getTransactions(userId: string, cycleId: string) {
     account: t.account,
     destinationAccount: t.destinationAccount,
   }));
+}
+
+/** A single account with its full transaction history (source or destination). */
+export async function getAccountWithHistory(userId: string, accountId: string) {
+  const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+  if (!account) return null;
+
+  const rows = await prisma.transaction.findMany({
+    where: {
+      userId,
+      OR: [{ accountId }, { destinationAccountId: accountId }],
+    },
+    orderBy: { date: "desc" },
+    include: { category: true, account: true, destinationAccount: true },
+  });
+
+  const txs = rows.map((t) => {
+    const isIncomingTransfer = t.type === "TRANSFER" && t.destinationAccountId === accountId;
+    return {
+      id: t.id,
+      type: t.type,
+      amount: num(t.amount),
+      date: t.date.toISOString().slice(0, 10),
+      notes: t.notes ?? "",
+      category: t.category,
+      counterparty:
+        t.type === "TRANSFER"
+          ? isIncomingTransfer
+            ? t.account.name
+            : t.destinationAccount?.name ?? ""
+          : "",
+      // Effect on THIS account's balance:
+      direction:
+        t.type === "INCOME" || isIncomingTransfer ? ("in" as const) : ("out" as const),
+    };
+  });
+
+  const balance = accountBalance(
+    accountId,
+    num(account.openingBalance),
+    rows.map((t) => ({
+      type: t.type,
+      amount: num(t.amount),
+      accountId: t.accountId,
+      destinationAccountId: t.destinationAccountId,
+    })),
+  );
+
+  return {
+    account: {
+      id: account.id,
+      name: account.name,
+      icon: account.icon,
+      color: account.color,
+      openingBalance: num(account.openingBalance),
+      balance,
+    },
+    txs,
+  };
 }
 
 export async function getCycleTotals(userId: string, cycleId: string) {

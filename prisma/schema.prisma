@@ -20,6 +20,16 @@ enum GoalStatus {
   MISSED
 }
 
+enum Frequency {
+  MONTHLY
+  WEEKLY
+}
+
+enum OccurrenceStatus {
+  CONFIRMED
+  SKIPPED
+}
+
 model User {
   id        String   @id // matches Supabase Auth user id
   email     String   @unique
@@ -32,6 +42,19 @@ model User {
   transactions    Transaction[]
   budgetTemplates BudgetTemplate[]
   goals           Goal[]
+  profile         Profile?
+  recurring       RecurringTransaction[]
+  insightCaches   InsightCache[]
+}
+
+model Profile {
+  id          String @id @default(cuid())
+  userId      String @unique
+  fullName    String
+  nickname    String
+  avatarEmoji String @default("🙂")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
@@ -110,6 +133,7 @@ model Transaction {
   categoryId           String?
   accountId            String // source for EXPENSE/TRANSFER, destination for INCOME
   destinationAccountId String? // TRANSFER only
+  receiptPath          String? // Supabase Storage object key for an attached receipt
   createdAt            DateTime        @default(now())
 
   user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -147,6 +171,58 @@ model CycleBudget {
   category Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, categoryId])
+}
+
+/// A template for a transaction expected to repeat. Never posts automatically —
+/// occurrences surface as confirm-to-post Due Occurrences (see CONTEXT.md).
+model RecurringTransaction {
+  id                   String          @id @default(cuid())
+  userId               String
+  type                 TransactionType
+  amount               Decimal         @db.Decimal(14, 2)
+  accountId            String
+  destinationAccountId String?
+  categoryId           String?
+  notes                String?
+  frequency            Frequency
+  dayOfMonth           Int? // 1..28 for MONTHLY
+  weekday              Int? // 0..6 for WEEKLY
+  anchorDate           DateTime
+  active               Boolean         @default(true)
+  createdAt            DateTime        @default(now())
+
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occurrences RecurringOccurrence[]
+
+  @@index([userId])
+}
+
+/// Ledger of handled occurrences (confirmed or skipped) for dedupe / no-double-post.
+model RecurringOccurrence {
+  id                     String           @id @default(cuid())
+  recurringTransactionId String
+  dueDate                DateTime
+  status                 OccurrenceStatus
+  postedTransactionId    String? // set when CONFIRMED
+  createdAt              DateTime         @default(now())
+
+  recurring RecurringTransaction @relation(fields: [recurringTransactionId], references: [id], onDelete: Cascade)
+
+  @@unique([recurringTransactionId, dueDate])
+}
+
+/// Cached Smart Insight prose per cycle (ADR 0002). Stores source facts + prose.
+model InsightCache {
+  id        String   @id @default(cuid())
+  userId    String
+  cycleId   String
+  facts     Json
+  lines     Json // string[] of phrased sentences
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cycleId])
 }
 
 model Goal {

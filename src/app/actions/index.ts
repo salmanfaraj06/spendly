@@ -46,8 +46,18 @@ export async function updateAccount(
 
 export async function deleteAccount(id: string) {
   const userId = await requireUserId();
-  await prisma.account.deleteMany({ where: { id, userId } });
+  await prisma.$transaction([
+    prisma.transaction.deleteMany({
+      where: {
+        userId,
+        OR: [{ accountId: id }, { destinationAccountId: id }],
+      },
+    }),
+    prisma.account.deleteMany({ where: { id, userId } }),
+  ]);
   revalidatePath("/accounts");
+  revalidatePath("/transactions");
+  revalidatePath("/budget");
   revalidatePath("/");
 }
 
@@ -85,6 +95,9 @@ export async function deleteCategory(id: string) {
   if (!cat || cat.isDefault) throw new Error("Default categories cannot be deleted");
   await prisma.category.deleteMany({ where: { id, userId, isDefault: false } });
   revalidatePath("/categories");
+  revalidatePath("/transactions");
+  revalidatePath("/budget");
+  revalidatePath("/");
 }
 
 export async function createCategory(input: { name: string; icon?: string; color?: string }) {
@@ -235,6 +248,32 @@ export async function updateGoalProgress(
     data: { achievedAmountLkr, ...(status ? { status } : {}) },
   });
   revalidatePath("/goals");
+}
+
+// ── Insights ─────────────────────────────────────────────────────────────
+export async function refreshInsights() {
+  const userId = await requireUserId();
+  const { currentCycle } = await import("@/lib/cycle-service");
+  const { regenerateInsights } = await import("@/lib/insights-service");
+  const cycle = await currentCycle(userId);
+  await regenerateInsights(userId, cycle);
+  revalidatePath("/");
+}
+
+// ── Profile ──────────────────────────────────────────────────────────────
+export async function updateProfile(input: {
+  fullName: string;
+  nickname: string;
+  avatarEmoji: string;
+}) {
+  const userId = await requireUserId();
+  await prisma.profile.upsert({
+    where: { userId },
+    create: { userId, ...input },
+    update: input,
+  });
+  revalidatePath("/profile");
+  revalidatePath("/");
 }
 
 // ── Cycle config ─────────────────────────────────────────────────────────

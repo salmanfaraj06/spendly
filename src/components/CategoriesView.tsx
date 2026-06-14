@@ -5,7 +5,14 @@ import { Card } from "./ui";
 import { Sheet, inputClass, labelClass } from "./Sheet";
 import { createCategory, updateCategory, deleteCategory } from "@/app/actions";
 
-type Cat = { id: string; name: string; icon: string | null; color: string | null; isDefault: boolean };
+type Cat = {
+  id: string;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  isDefault: boolean;
+  txCount: number;
+};
 
 const ICONS = ["🍔", "🚗", "🛍️", "🥦", "🎬", "💊", "💡", "📈", "💰", "🏷️", "✈️", "🎁", "📚", "🐾"];
 const COLORS = ["#f97316", "#3b82f6", "#ec4899", "#22c55e", "#a855f7", "#ef4444", "#eab308", "#14b8a6", "#34d399"];
@@ -65,6 +72,7 @@ function CategorySheet({
   const [name, setName] = useState(initial?.name ?? "");
   const [icon, setIcon] = useState(initial?.icon ?? ICONS[0]);
   const [color, setColor] = useState(initial?.color ?? COLORS[0]);
+  const [confirming, setConfirming] = useState(false);
   const [pending, start] = useTransition();
 
   function save() {
@@ -77,6 +85,10 @@ function CategorySheet({
   }
   function remove() {
     if (!initial) return;
+    if (initial.txCount > 0 && !confirming) {
+      setConfirming(true);
+      return;
+    }
     start(async () => {
       await deleteCategory(initial.id);
       onClose();
@@ -110,9 +122,25 @@ function CategorySheet({
           {pending ? "Saving…" : "Save"}
         </button>
         {canDelete && (
-          <button onClick={remove} disabled={pending} className="w-full rounded-2xl border border-danger/40 py-3 text-sm font-semibold text-danger active:scale-[0.98] transition-transform disabled:opacity-50">
-            Delete Category
-          </button>
+          confirming ? (
+            <div className="rounded-2xl border border-danger/40 bg-danger/5 p-3 text-center">
+              <p className="text-sm text-text">
+                Delete <b>{initial?.name}</b> and clear it from {initial?.txCount} transaction{initial?.txCount === 1 ? "" : "s"}?
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button onClick={() => setConfirming(false)} disabled={pending} className="rounded-xl bg-surface-2 py-2.5 text-sm font-semibold">
+                  Cancel
+                </button>
+                <button onClick={remove} disabled={pending} className="rounded-xl bg-danger py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+                  {pending ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={remove} disabled={pending} className="w-full rounded-2xl border border-danger/40 py-3 text-sm font-semibold text-danger active:scale-[0.98] transition-transform disabled:opacity-50">
+              Delete Category
+            </button>
+          )
         )}
       </div>
     </Sheet>

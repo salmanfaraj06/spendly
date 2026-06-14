@@ -17,7 +17,10 @@ export async function GET(request: Request) {
       if (user) {
         // Lazily provision domain data on first login.
         const { ensureUserProvisioned } = await import("@/lib/provision");
-        await ensureUserProvisioned(user.id, user.email ?? "");
+        const fullName =
+          (user.user_metadata?.full_name as string | undefined) ??
+          (user.user_metadata?.name as string | undefined);
+        await ensureUserProvisioned(user.id, user.email ?? "", fullName);
       }
       return NextResponse.redirect(`${origin}${next}`);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Card } from "./ui";
 import { Sheet, inputClass, labelClass } from "./Sheet";
 import { lkr } from "@/lib/format";
@@ -13,6 +14,7 @@ type Acc = {
   color: string | null;
   openingBalance: number;
   balance: number;
+  txCount: number;
 };
 
 const ICONS = ["💵", "🏦", "💳", "📱", "🪙", "💼", "🏧", "💰"];
@@ -24,6 +26,7 @@ export function AccountCard({ account }: { account: Acc }) {
   const [icon, setIcon] = useState(account.icon ?? ICONS[0]);
   const [color, setColor] = useState(account.color ?? COLORS[0]);
   const [opening, setOpening] = useState(String(account.openingBalance));
+  const [confirming, setConfirming] = useState(false);
   const [pending, start] = useTransition();
 
   function save() {
@@ -34,6 +37,11 @@ export function AccountCard({ account }: { account: Acc }) {
     });
   }
   function remove() {
+    // Empty accounts delete freely; ones with history require confirmation.
+    if (account.txCount > 0 && !confirming) {
+      setConfirming(true);
+      return;
+    }
     start(async () => {
       await deleteAccount(account.id);
       setOpen(false);
@@ -56,6 +64,13 @@ export function AccountCard({ account }: { account: Acc }) {
       </button>
 
       <Sheet open={open} onClose={() => setOpen(false)} title="Edit Account">
+        <Link
+          href={`/accounts/${account.id}`}
+          className="mb-4 flex items-center justify-between rounded-2xl bg-surface-2 px-4 py-3 text-sm font-medium text-text active:scale-[0.98]"
+        >
+          View transaction history
+          <span className="text-text-dim">›</span>
+        </Link>
         <div className="space-y-4">
           <div>
             <label className={labelClass}>Name</label>
@@ -84,9 +99,25 @@ export function AccountCard({ account }: { account: Acc }) {
           <button onClick={save} disabled={pending} className="w-full rounded-2xl bg-accent py-3.5 font-semibold text-bg active:scale-[0.98] transition-transform disabled:opacity-50">
             {pending ? "Saving…" : "Save Changes"}
           </button>
-          <button onClick={remove} disabled={pending} className="w-full rounded-2xl border border-danger/40 py-3 text-sm font-semibold text-danger active:scale-[0.98] transition-transform disabled:opacity-50">
-            Delete Account
-          </button>
+          {confirming ? (
+            <div className="rounded-2xl border border-danger/40 bg-danger/5 p-3 text-center">
+              <p className="text-sm text-text">
+                Delete <b>{account.name}</b> and its {account.txCount} transaction{account.txCount === 1 ? "" : "s"}?
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button onClick={() => setConfirming(false)} disabled={pending} className="rounded-xl bg-surface-2 py-2.5 text-sm font-semibold">
+                  Cancel
+                </button>
+                <button onClick={remove} disabled={pending} className="rounded-xl bg-danger py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+                  {pending ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={remove} disabled={pending} className="w-full rounded-2xl border border-danger/40 py-3 text-sm font-semibold text-danger active:scale-[0.98] transition-transform disabled:opacity-50">
+              Delete Account
+            </button>
+          )}
         </div>
       </Sheet>
     </>

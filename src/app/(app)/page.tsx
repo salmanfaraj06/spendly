@@ -1,6 +1,8 @@
 import { Card, HeroCard, Pill, ProgressBar } from "@/components/ui";
 import { ProfileButton } from "@/components/ProfileButton";
+import { InsightsCard } from "@/components/InsightsCard";
 import { TrendChart, CategoryBars } from "@/components/charts";
+import { getInsights } from "@/lib/insights-service";
 import { lkr, lkrCompact, formatDate } from "@/lib/format";
 import { requireUserId } from "@/lib/auth";
 import {
@@ -13,6 +15,7 @@ import {
   getBudgetReport,
   getCategories,
   getCycleTrend,
+  getProfile,
 } from "@/lib/queries";
 import { previousCycleOf } from "@/lib/cycle-service";
 
@@ -32,6 +35,9 @@ export default async function HomePage() {
       previousCycleOf(userId, cycle.startDate),
       getCycleTrend(userId, 7),
     ]);
+
+  const profile = await getProfile(userId);
+  const insights = txs.length > 0 ? await getInsights(userId, cycle) : [];
 
   const prevTotals = await getCycleTotals(userId, prevCycle.id);
   const momPct =
@@ -61,9 +67,11 @@ export default async function HomePage() {
           <p className="text-xs text-text-muted">
             {formatDate(cycle.startDate)} – {formatDate(new Date(cycle.endDate.getTime() - 86400000))}
           </p>
-          <p className="text-sm font-medium text-text-muted">Welcome back 👋</p>
+          <p className="text-sm font-medium text-text-muted">
+            {greeting()}{profile?.nickname ? `, ${profile.nickname}` : ""} 👋
+          </p>
         </div>
-        <ProfileButton />
+        <ProfileButton avatarEmoji={profile?.avatarEmoji ?? null} />
       </header>
 
       <HeroCard delay={0.02}>
@@ -109,6 +117,31 @@ export default async function HomePage() {
             </Card>
           </div>
 
+          <Card delay={0.09}>
+            <p className="mb-3 text-sm font-semibold">This cycle vs last</p>
+            <div className="space-y-2.5">
+              {([
+                ["Income", totals.income, prevTotals.income, true],
+                ["Expenses", totals.expense, prevTotals.expense, false],
+                ["Net", totals.net, prevTotals.income - prevTotals.expense, true],
+              ] as const).map(([label, now, prev, higherIsGood]) => {
+                const delta = prev !== 0 ? Math.round(((now - prev) / Math.abs(prev)) * 100) : null;
+                const good = delta === null ? true : higherIsGood ? delta >= 0 : delta <= 0;
+                return (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-sm text-text-muted">{label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">{lkrCompact(now)}</span>
+                      {delta !== null && (
+                        <Pill tone={good ? "up" : "down"}>{delta > 0 ? "▲" : delta < 0 ? "▼" : ""} {Math.abs(delta)}%</Pill>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
           {totalBudget > 0 && (
             <Card delay={0.1}>
               <div className="mb-2 flex items-center justify-between">
@@ -121,6 +154,8 @@ export default async function HomePage() {
               <p className="mt-2 text-xs text-text-muted">{budgetPct}% of total budget used this cycle</p>
             </Card>
           )}
+
+          <InsightsCard lines={insights} delay={0.11} />
 
           <Card delay={0.12}>
             <p className="mb-2 text-sm font-semibold">7-Month Spending Trend</p>
@@ -169,4 +204,11 @@ export default async function HomePage() {
       )}
     </>
   );
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
 }

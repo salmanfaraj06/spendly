@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { inputClass, labelClass } from "./Sheet";
+import { useToast } from "./Toast";
 import {
   createTransaction,
   updateTransaction,
@@ -30,14 +31,16 @@ export function TransactionForm({
   accounts,
   categories,
   editing,
+  presetType,
   onDone,
 }: {
   accounts: Account[];
   categories: Category[];
   editing?: EditingTx;
+  presetType?: TxType;
   onDone: () => void;
 }) {
-  const [type, setType] = useState<TxType>(editing?.type ?? "EXPENSE");
+  const [type, setType] = useState<TxType>(editing?.type ?? presetType ?? "EXPENSE");
   const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
   const [accountId, setAccountId] = useState(editing?.accountId ?? accounts[0]?.id ?? "");
   const [destId, setDestId] = useState(
@@ -50,6 +53,7 @@ export function TransactionForm({
   const [date, setDate] = useState(editing?.date ?? today());
   const [notes, setNotes] = useState(editing?.notes ?? "");
   const [pending, start] = useTransition();
+  const toast = useToast();
 
   const suggestions = categories.filter((c) =>
     c.name.toLowerCase().includes(categoryQuery.toLowerCase()),
@@ -83,9 +87,26 @@ export function TransactionForm({
 
   function remove() {
     if (!editing) return;
+    // Capture the payload so the toast can restore it.
+    const restore = {
+      type: editing.type,
+      amount: editing.amount,
+      date: editing.date,
+      notes: editing.notes,
+      categoryId: editing.categoryId,
+      accountId: editing.accountId,
+      destinationAccountId: editing.destinationAccountId,
+    };
     start(async () => {
       await deleteTransaction(editing.id);
       onDone();
+      toast.show({
+        message: "Transaction deleted",
+        actionLabel: "Undo",
+        onAction: () => {
+          void createTransaction(restore);
+        },
+      });
     });
   }
 
