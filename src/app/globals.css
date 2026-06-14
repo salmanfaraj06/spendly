@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/* ── Finance Tracker — light, white-forward theme with one green accent ──── */
+@theme {
+  /* Surfaces */
+  --color-bg: #f5f7f5;          /* app canvas — soft warm off-white */
+  --color-bg-elevated: #ffffff; /* sheets, nav */
+  --color-surface: #ffffff;     /* cards */
+  --color-surface-2: #eef1ee;   /* tracks, chips, inset fills */
+  --color-border: #e6eae6;      /* hairlines */
+
+  /* Single accent (emerald, kept under 80% sat) */
+  --color-accent: #16a35a;
+  --color-accent-strong: #0e8049;
+  --color-accent-soft: #d8f0e2;
+  --color-lime: #5cb85c;
+
+  /* Hero green card */
+  --color-hero-from: #1aa45f;
+  --color-hero-to: #0c7140;
+
+  /* Text — near-black with a faint green undertone */
+  --color-text: #16201b;
+  --color-text-muted: #5d6b62;
+  --color-text-dim: #93a098;
+  --color-on-hero: #f2fbf5;
+
+  --color-danger: #dc4b4b;
+  --color-warn: #d99030;
+
+  --font-sans: var(--font-outfit), system-ui, -apple-system, sans-serif;
+  --radius-card: 1.5rem;
+
+  /* Tinted, layered shadows (green-gray, single light source from top) */
+  --shadow-card: 0 1px 2px rgba(20, 40, 28, 0.04),
+                 0 8px 24px -12px rgba(20, 60, 38, 0.12);
+  --shadow-hero: 0 12px 32px -10px rgba(12, 113, 64, 0.45);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  overscroll-behavior-y: none;
+}
+
+/* Data-heavy UI: tabular figures everywhere by default */
+body {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Very subtle ambient green wash at the top — not a hard dark section */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(70% 35% at 50% -5%, rgba(22, 163, 90, 0.07), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Fine grain overlay to break flatness */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  opacity: 0.025;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}

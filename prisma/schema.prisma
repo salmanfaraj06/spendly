@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  MISSED
+}
+
+model User {
+  id        String   @id // matches Supabase Auth user id
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  accounts        Account[]
+  cycleConfigs    CycleConfig[]
+  financeCycles   FinanceCycle[]
+  categories      Category[]
+  transactions    Transaction[]
+  budgetTemplates BudgetTemplate[]
+  goals           Goal[]
+}
+
+model Account {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  icon           String?
+  color          String?
+  openingBalance Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime @default(now())
+
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions         Transaction[] @relation("SourceAccount")
+  incomingTransactions Transaction[] @relation("DestinationAccount")
+
+  @@index([userId])
+}
+
+/// One row per cycle-config change. Active config = latest where effectiveFrom <= now.
+/// effectiveFrom MUST be a cycle boundary — see ADR 0001.
+model CycleConfig {
+  id            String   @id @default(cuid())
+  userId        String
+  startDay      Int // 1..28
+  effectiveFrom DateTime
+  createdAt     DateTime @default(now())
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycles FinanceCycle[]
+
+  @@index([userId, effectiveFrom])
+}
+
+model FinanceCycle {
+  id            String   @id @default(cuid())
+  userId        String
+  startDate     DateTime
+  endDate       DateTime // exclusive
+  cycleConfigId String
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycleConfig  CycleConfig   @relation(fields: [cycleConfigId], references: [id])
+  transactions Transaction[]
+  cycleBudgets CycleBudget[]
+  goals        Goal[]
+
+  @@unique([userId, startDate])
+  @@index([userId])
+}
+
+model Category {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String
+  icon      String?
+  color     String?
+  isDefault Boolean @default(false)
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+  budgetTemplates BudgetTemplate[]
+  cycleBudgets    CycleBudget[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Transaction {
+  id                   String          @id @default(cuid())
+  userId               String
+  cycleId              String
+  type                 TransactionType
+  amount               Decimal         @db.Decimal(14, 2)
+  date                 DateTime
+  notes                String?
+  categoryId           String?
+  accountId            String // source for EXPENSE/TRANSFER, destination for INCOME
+  destinationAccountId String? // TRANSFER only
+  createdAt            DateTime        @default(now())
+
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle              FinanceCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  category           Category?    @relation(fields: [categoryId], references: [id])
+  account            Account      @relation("SourceAccount", fields: [accountId], references: [id])
+  destinationAccount Account?     @relation("DestinationAccount", fields: [destinationAccountId], references: [id])
+
+  @@index([userId, cycleId])
+  @@index([accountId])
+}
+
+/// Persistent budget per category. Carries forward across cycles.
+model BudgetTemplate {
+  id         String  @id @default(cuid())
+  userId     String
+  categoryId String
+  amountLkr  Decimal @db.Decimal(14, 2)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId])
+}
+
+/// Materialised budget for a specific cycle. isOverride = manually changed for this cycle.
+model CycleBudget {
+  id         String  @id @default(cuid())
+  cycleId    String
+  categoryId String
+  amountLkr  Decimal @db.Decimal(14, 2)
+  isOverride Boolean @default(false)
+
+  cycle    FinanceCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  category Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, categoryId])
+}
+
+model Goal {
+  id                String     @id @default(cuid())
+  userId            String
+  cycleId           String
+  name              String
+  targetAmountLkr   Decimal    @db.Decimal(14, 2)
+  achievedAmountLkr Decimal    @default(0) @db.Decimal(14, 2)
+  status            GoalStatus @default(ACTIVE)
+  createdAt         DateTime   @default(now())
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle FinanceCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, cycleId])
+}
