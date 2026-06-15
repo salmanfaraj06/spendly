@@ -2,7 +2,7 @@
 
 **Type:** AFK
 **Triage:** ready-for-agent
-**Status:** ✅ Done
+**Status:** ✅ DONE — 'This cycle vs last' card on Home (income/expense/net deltas); interactive trend chart.
 
 ## What to build
 A "this cycle vs last cycle" card on Home (income, expense, net side by side with deltas), and make the 7-month trend chart interactive (tap a month to see its totals).

@@ -2,7 +2,7 @@
 
 **Type:** AFK
 **Triage:** ready-for-agent
-**Status:** ✅ Done
+**Status:** ✅ DONE — Profile model, provisioning from Google name, /profile screen (name/nickname/emoji), Home greeting + avatar use nickname/emoji.
 
 ## What to build
 A Profile (1:1 with User) holding fullName, nickname, avatarEmoji. Provisioned from the Google identity on first login. A `/profile` screen to view/edit it; the Home greeting uses the nickname; email + currency shown read-only.

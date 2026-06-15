@@ -1,8 +1,8 @@
+import { Suspense } from "react";
 import { Card, HeroCard, Pill, ProgressBar } from "@/components/ui";
 import { ProfileButton } from "@/components/ProfileButton";
-import { InsightsCard } from "@/components/InsightsCard";
+import { HomeInsights, InsightsSkeleton } from "@/components/HomeInsights";
 import { TrendChart, CategoryBars } from "@/components/charts";
-import { getInsights } from "@/lib/insights-service";
 import { getDueOccurrences } from "@/lib/recurrence-service";
 import { lkr, lkrCompact, formatDate } from "@/lib/format";
 import { requireUserId } from "@/lib/auth";
@@ -39,7 +39,6 @@ export default async function HomePage() {
     ]);
 
   const profile = await getProfile(userId);
-  const insights = txs.length > 0 ? await getInsights(userId, cycle) : [];
 
   const prevTotals = await getCycleTotals(userId, prevCycle.id);
   const momPct =
@@ -169,7 +168,9 @@ export default async function HomePage() {
             </Card>
           )}
 
-          <InsightsCard lines={insights} delay={0.11} />
+          <Suspense fallback={<InsightsSkeleton />}>
+            <HomeInsights userId={userId} />
+          </Suspense>
 
           <Card delay={0.12}>
             <p className="mb-2 text-sm font-semibold">7-Month Spending Trend</p>

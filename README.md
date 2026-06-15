@@ -16,7 +16,13 @@ See [CONTEXT.md](CONTEXT.md) for the domain glossary, [PRD.md](PRD.md) for the p
 | **Add flows** (transaction/account/budget/goal) | ✅ Server Actions + bottom-sheet forms |
 | **CSV export** (4 types) | ✅ `/api/export/[type]` via profile menu |
 
-**All 9 issues complete.** The app reads and writes real data scoped to the authenticated user and active Finance Cycle. Includes: add/edit/delete transactions with filter + search, account edit, manage-categories screen, per-cycle budget overrides + cycle navigator, goal progress + achieved/missed, 7-month trend, date-range CSV exports, settings (cycle start-day), and PWA app icons. See [docs/issues/](docs/issues/) for per-feature detail.
+**PRD 1 complete (issues 1–9)** plus **PRD 2 mostly complete (issues 10–20, except 18).** The app reads and writes real data scoped to the authenticated user and active Finance Cycle. Includes: add/edit/delete transactions with filter + search, account edit + per-account history, manage-categories screen, per-cycle budget overrides + cycle navigator, goal progress + achieved/missed, 7-month trend, date-range CSV exports, settings (cycle start-day), PWA app icons.
+
+**PRD 2 additions:** recurring transactions (confirm-to-post Due Occurrences with Home banner + review screen), AI Smart Insights (deterministic facts phrased by OpenAI with a built-in fallback — ADR 0002), profile (name/nickname/emoji), cycle-vs-last comparison, undo/confirm safety nets, and quick-add shortcuts + deep link.
+
+**Not yet built:** issue 18 (receipt photos) — needs a private Supabase Storage bucket + policies (HITL). `OPENAI_API_KEY` is optional: insights fall back to plain wording without it.
+
+See [docs/issues/](docs/issues/) for per-feature status.
 
 ## Scripts
 

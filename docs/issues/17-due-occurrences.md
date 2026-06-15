@@ -2,7 +2,7 @@
 
 **Type:** AFK
 **Triage:** ready-for-agent
-**Status:** ✅ Done
+**Status:** ✅ DONE — RecurrenceService + Home banner + /recurring/due review; confirm/edit/skip posts a real Transaction in the right cycle; triple-guarded against double-post.
 
 ## What to build
 Materialise Due Occurrences from templates via RecurrenceService. Home banner ("N recurring due") + dedicated review screen. Confirm (one tap), edit-before-post, or skip. Confirming posts a real Transaction in the correct cycle via the existing creation path. No double-posting.

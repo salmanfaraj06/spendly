@@ -2,7 +2,7 @@
 
 **Type:** AFK
 **Triage:** ready-for-agent
-**Status:** ✅ Done
+**Status:** ✅ DONE — undo toast on transaction delete (restores via re-create); confirm dialog before deleting accounts/categories WITH linked transactions; empty ones delete freely.
 
 ## What to build
 Undo toast for transaction delete (instant delete, 5s "Undo"). Confirmation dialog before deleting an Account or Category that still has linked transactions; empty ones delete without nagging.

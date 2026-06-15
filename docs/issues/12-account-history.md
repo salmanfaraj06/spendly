@@ -2,7 +2,7 @@
 
 **Type:** AFK
 **Triage:** ready-for-agent
-**Status:** ✅ Done
+**Status:** ✅ DONE — /accounts/[id] running balance + full history; transfers shown in/out per account; opened from the account edit sheet.
 
 ## What to build
 Tapping an account opens `/accounts/[id]` showing its running balance and full transaction history, with transfers shown from that account's in/out perspective.

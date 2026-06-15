@@ -2,7 +2,7 @@
 
 **Type:** AFK
 **Triage:** ready-for-agent
-**Status:** ✅ Done
+**Status:** ✅ DONE — RecurringTransaction model + /recurring manage screen (create/edit/delete; monthly/weekly).
 
 ## What to build
 `RecurringTransaction` model + a manage screen in Settings to create/edit/delete templates (type, amount, account(s), category, notes, frequency, day-of-month or weekday, anchor).

@@ -2,7 +2,7 @@
 
 **Type:** AFK
 **Triage:** ready-for-agent
-**Status:** ✅ Done
+**Status:** ✅ DONE — manifest shortcuts + /transactions?add=expense|income deep link auto-opens the add sheet with type preset.
 
 ## What to build
 PWA manifest `shortcuts` ("Add Expense", "Add Income") and a deep link `/?add=expense|income` that opens the add sheet pre-set on load.

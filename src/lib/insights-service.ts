@@ -66,13 +66,18 @@ async function buildInput(userId: string, cycle: CycleRef): Promise<InsightInput
   };
 }
 
-/** Return cached insight lines for the cycle, generating them if absent. */
-export async function getInsights(userId: string, cycle: CycleRef): Promise<string[]> {
+/**
+ * Read-only: return cached insight lines for the cycle, or null if none exist.
+ * Never generates (no OpenAI call) — generation only happens on explicit refresh.
+ */
+export async function getCachedInsights(
+  userId: string,
+  cycleId: string,
+): Promise<string[] | null> {
   const cached = await prisma.insightCache.findUnique({
-    where: { userId_cycleId: { userId, cycleId: cycle.id } },
+    where: { userId_cycleId: { userId, cycleId } },
   });
-  if (cached) return cached.lines as string[];
-  return regenerateInsights(userId, cycle);
+  return cached ? (cached.lines as string[]) : null;
 }
 
 /** Force regeneration (used by the manual refresh) and update the cache. */

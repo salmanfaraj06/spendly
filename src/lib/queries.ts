@@ -276,22 +276,34 @@ export async function getAnnualGoals(userId: string, year: number) {
 
 /** Expense totals for the last `count` cycles (oldest → newest), for the trend chart. */
 export async function getCycleTrend(userId: string, count = 7) {
-  const { previousCycleOf } = await import("./cycle-service");
-  const out: { month: string; spend: number }[] = [];
-  let cursor = await currentCycle(userId);
-  const cycles = [cursor];
+  const { loadConfigs } = await import("./cycle-service");
+  const { resolveCycle, previousCycle } = await import("./cycle-engine");
+
+  // Compute the last `count` cycle windows entirely in memory (pure engine).
+  const configs = await loadConfigs(userId);
+  const windows = [resolveCycle(configs, new Date())];
   for (let i = 1; i < count; i++) {
-    cursor = await previousCycleOf(userId, cursor.startDate);
-    cycles.unshift(cursor);
+    windows.unshift(previousCycle(configs, windows[0]));
   }
-  for (const c of cycles) {
-    const totals = await getCycleTotals(userId, c.id);
-    out.push({
-      month: c.startDate.toLocaleDateString("en-LK", { month: "short" }),
-      spend: totals.expense,
-    });
-  }
-  return out;
+
+  // One ranged query for all expenses across the whole span, bucketed in JS.
+  const rangeStart = windows[0].start;
+  const rangeEnd = windows[windows.length - 1].end;
+  const txs = await prisma.transaction.findMany({
+    where: { userId, type: "EXPENSE", date: { gte: rangeStart, lt: rangeEnd } },
+    select: { date: true, amount: true },
+  });
+
+  return windows.map((w) => {
+    let spend = 0;
+    for (const t of txs) {
+      if (t.date >= w.start && t.date < w.end) spend += num(t.amount);
+    }
+    return {
+      month: w.start.toLocaleDateString("en-LK", { month: "short" }),
+      spend,
+    };
+  });
 }
 
 /** Convenience: the active cycle as a plain view. */

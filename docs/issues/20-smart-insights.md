@@ -2,7 +2,7 @@
 
 **Type:** HITL
 **Triage:** ready-for-agent
-**Status:** ✅ Done
+**Status:** ✅ DONE — InsightsPhraser (OpenAI + deterministic fallback, ADR 0002), per-cycle cache + manual refresh, Home section. Works without OPENAI_API_KEY.
 
 ## What to build
 InsightsPhraser: pass InsightsEngine facts to OpenAI for friendly phrasing, with a deterministic built-in template fallback when `OPENAI_API_KEY` is missing or the call fails (ADR 0002). Cache prose per cycle, manual refresh. Home insights section. (HITL: needs OPENAI_API_KEY.)

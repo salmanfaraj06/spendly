@@ -2,7 +2,7 @@
 
 **Type:** AFK
 **Triage:** ready-for-agent
-**Status:** ✅ Done
+**Status:** ✅ DONE — pure InsightsEngine computes the 6 facts; 12 unit tests incl. edge cases.
 
 ## What to build
 Pure module computing the 6 structured facts from cycle totals, spend-by-category, budget report, and previous-cycle data: budget pacing (time-vs-spend), top category mover, biggest expense, cycle-over-cycle change, over/near-budget count, net savings signal.

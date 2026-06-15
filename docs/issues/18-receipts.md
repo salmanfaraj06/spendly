@@ -2,7 +2,7 @@
 
 **Type:** HITL
 **Triage:** ready-for-agent
-**Status:** ⏳ TODO
+**Status:** ⏳ TODO (HITL) — schema field receiptPath exists; NOT implemented. Needs a private Supabase Storage bucket + per-user policies before the upload/view UI.
 
 ## What to build
 Attach a photo to a transaction. Private per-user Supabase Storage bucket, client-side compression, signed-URL display, full-screen viewer, remove/replace. (HITL: needs the Storage bucket + policies set up in Supabase.)
