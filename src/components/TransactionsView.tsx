@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Card } from "./ui";
 import { Sheet } from "./Sheet";
 import { AddTransaction } from "./AddTransaction";
 import { TransactionForm, type Account, type Category, type EditingTx } from "./TransactionForm";
 import { lkr } from "@/lib/format";
+import { loadTransactionPage } from "@/app/actions";
 
 export type TxItem = {
   id: string;
@@ -26,20 +27,27 @@ export type TxItem = {
 type Filter = "All" | "Income" | "Expense" | "Transfer";
 
 export function TransactionsView({
+  cycleId,
   items,
+  nextCursor,
   accounts,
   categories,
 }: {
+  cycleId: string;
   items: TxItem[];
+  nextCursor: string | null;
   accounts: Account[];
   categories: Category[];
 }) {
+  const [loadedItems, setLoadedItems] = useState(items);
+  const [cursor, setCursor] = useState(nextCursor);
   const [filter, setFilter] = useState<Filter>("All");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<EditingTx | null>(null);
+  const [pending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
-    return items.filter((t) => {
+    return loadedItems.filter((t) => {
       if (filter === "Income" && t.type !== "INCOME") return false;
       if (filter === "Expense" && t.type !== "EXPENSE") return false;
       if (filter === "Transfer" && t.type !== "TRANSFER") return false;
@@ -50,7 +58,7 @@ export function TransactionsView({
       }
       return true;
     });
-  }, [items, filter, search]);
+  }, [loadedItems, filter, search]);
 
   const groups = useMemo(() => {
     const m = new Map<string, TxItem[]>();
@@ -87,7 +95,7 @@ export function TransactionsView({
       {filtered.length === 0 ? (
         <Card>
           <p className="text-sm text-text-muted">
-            {items.length === 0
+            {loadedItems.length === 0
               ? "No transactions this cycle yet. Tap + to add your first one."
               : "No transactions match your filter."}
           </p>
@@ -140,6 +148,22 @@ export function TransactionsView({
             </Card>
           </div>
         ))
+      )}
+
+      {cursor && (
+        <button
+          onClick={() =>
+            startTransition(async () => {
+              const page = await loadTransactionPage(cycleId, cursor);
+              setLoadedItems((current) => [...current, ...page.items]);
+              setCursor(page.nextCursor);
+            })
+          }
+          disabled={pending}
+          className="w-full rounded-2xl border border-border bg-surface py-3 text-sm font-semibold text-text-muted shadow-[var(--shadow-card)] transition-colors active:scale-[0.98] disabled:opacity-50"
+        >
+          {pending ? "Loading..." : "Load more"}
+        </button>
       )}
 
       <AddTransaction accounts={accounts} categories={categories} />

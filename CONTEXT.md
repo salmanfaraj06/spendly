@@ -55,7 +55,11 @@ A monthly savings or investment target (e.g. "Save LKR 50,000 this cycle"). No d
 **LKR** (Sri Lankan Rupee) — single currency, no multi-currency support.
 
 ## Authentication
-**Google OAuth via Supabase Auth** — single user, no multi-user or sharing features.
+**Google OAuth via Supabase Auth** — signup is open to Google-authenticated users. Each authenticated User has a private personal finance workspace. Multiple people may use the app, but there are no shared accounts, shared budgets, household workspaces, team views, or cross-user data access in v1.
+
+### User
+The tenant owner of one private personal finance workspace. All Accounts, Transactions, Categories, Budgets, Goals, Recurring Transactions, Insights, and Exports belong to exactly one User.
+_Avoid_: Tenant, member, friend, account holder
 
 ## Alerts
 In-app budget alerts only (e.g. "close to Food & Dining limit"). No push notifications in v1.

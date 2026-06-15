@@ -1,6 +1,6 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { accountBalance, type Transaction as BalTx } from "./balance-engine";
 import {
   materialiseCycleBudgets,
   cycleBudgetReport,
@@ -11,20 +11,100 @@ const num = (d: { toNumber(): number } | null | undefined) =>
   d ? d.toNumber() : 0;
 
 export type CycleView = { id: string; startDate: Date; endDate: Date };
+export const TRANSACTION_PAGE_SIZE = 50;
+
+const txListInclude = {
+  category: { select: { id: true, name: true, icon: true, color: true } },
+  account: { select: { id: true, name: true, icon: true } },
+  destinationAccount: { select: { id: true, name: true, icon: true } },
+} as const;
+
+type TxListRow = Prisma.TransactionGetPayload<{ include: typeof txListInclude }>;
+
+export type TransactionListItem = {
+  id: string;
+  type: "INCOME" | "EXPENSE" | "TRANSFER";
+  amount: number;
+  date: string;
+  notes: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  categoryIcon: string | null;
+  categoryColor: string | null;
+  accountId: string;
+  accountName: string;
+  destinationAccountId: string | null;
+  destinationAccountName: string | null;
+};
+
+export type TransactionPage = {
+  items: TransactionListItem[];
+  nextCursor: string | null;
+};
+
+function mapTransactionListItem(t: TxListRow): TransactionListItem {
+  return {
+    id: t.id,
+    type: t.type,
+    amount: num(t.amount),
+    date: t.date.toISOString().slice(0, 10),
+    notes: t.notes ?? "",
+    categoryId: t.category?.id ?? null,
+    categoryName: t.category?.name ?? null,
+    categoryIcon: t.category?.icon ?? null,
+    categoryColor: t.category?.color ?? null,
+    accountId: t.account.id,
+    accountName: t.account.name,
+    destinationAccountId: t.destinationAccount?.id ?? null,
+    destinationAccountName: t.destinationAccount?.name ?? null,
+  };
+}
 
 /** All accounts with derived current balances (BalanceEngine). */
 export async function getAccounts(userId: string) {
-  const [accounts, txs] = await Promise.all([
+  const [accounts, sourceGroups, incomingTransfers] = await Promise.all([
     prisma.account.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
-    prisma.transaction.findMany({ where: { userId } }),
+    prisma.transaction.groupBy({
+      by: ["accountId", "type"],
+      where: { userId },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    prisma.transaction.groupBy({
+      by: ["destinationAccountId"],
+      where: { userId, type: "TRANSFER", destinationAccountId: { not: null } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
   ]);
 
-  const balTxs: BalTx[] = txs.map((t) => ({
-    type: t.type,
-    amount: num(t.amount),
-    accountId: t.accountId,
-    destinationAccountId: t.destinationAccountId,
-  }));
+  const byAccount = new Map<
+    string,
+    { income: number; expense: number; transferOut: number; transferIn: number; count: number }
+  >();
+  const statsFor = (accountId: string) => {
+    const existing = byAccount.get(accountId);
+    if (existing) return existing;
+    const created = { income: 0, expense: 0, transferOut: 0, transferIn: 0, count: 0 };
+    byAccount.set(accountId, created);
+    return created;
+  };
+
+  for (const group of sourceGroups) {
+    const stats = statsFor(group.accountId);
+    const amount = num(group._sum.amount);
+    stats.count += group._count._all;
+    if (group.type === "INCOME") stats.income += amount;
+    if (group.type === "EXPENSE") stats.expense += amount;
+    if (group.type === "TRANSFER") stats.transferOut += amount;
+  }
+
+  for (const group of incomingTransfers) {
+    if (!group.destinationAccountId) continue;
+    const stats = statsFor(group.destinationAccountId);
+    stats.transferIn += num(group._sum.amount);
+    stats.count += group._count._all;
+  }
 
   return accounts.map((a) => ({
     id: a.id,
@@ -32,10 +112,13 @@ export async function getAccounts(userId: string) {
     icon: a.icon,
     color: a.color,
     openingBalance: num(a.openingBalance),
-    balance: accountBalance(a.id, num(a.openingBalance), balTxs),
-    txCount: txs.filter(
-      (t) => t.accountId === a.id || t.destinationAccountId === a.id,
-    ).length,
+    balance:
+      num(a.openingBalance) +
+      (byAccount.get(a.id)?.income ?? 0) -
+      (byAccount.get(a.id)?.expense ?? 0) -
+      (byAccount.get(a.id)?.transferOut ?? 0) +
+      (byAccount.get(a.id)?.transferIn ?? 0),
+    txCount: byAccount.get(a.id)?.count ?? 0,
   }));
 }
 
@@ -124,21 +207,128 @@ export async function getTransactions(userId: string, cycleId: string) {
   }));
 }
 
+/** First page / next page of transactions for one cycle. */
+export async function getTransactionPage(
+  userId: string,
+  cycleId: string,
+  cursor?: string | null,
+  pageSize = TRANSACTION_PAGE_SIZE,
+): Promise<TransactionPage> {
+  const rows = await prisma.transaction.findMany({
+    where: { userId, cycleId },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+    take: pageSize + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    include: txListInclude,
+  });
+  const pageRows = rows.slice(0, pageSize);
+  return {
+    items: pageRows.map((t) => mapTransactionListItem(t as TxListRow)),
+    nextCursor: rows.length > pageSize ? pageRows[pageRows.length - 1]?.id ?? null : null,
+  };
+}
+
+/** Latest transactions for dashboard previews. */
+export async function getRecentTransactions(
+  userId: string,
+  cycleId: string,
+  take = 5,
+) {
+  const rows = await prisma.transaction.findMany({
+    where: { userId, cycleId },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+    take,
+    include: txListInclude,
+  });
+  return rows.map((t) => mapTransactionListItem(t as TxListRow));
+}
+
 /** A single account with its full transaction history (source or destination). */
 export async function getAccountWithHistory(userId: string, accountId: string) {
   const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
   if (!account) return null;
 
+  const balance = await getAccountBalance(userId, accountId, num(account.openingBalance));
+  const page = await getAccountTransactionPage(userId, accountId);
+
+  return {
+    account: {
+      id: account.id,
+      name: account.name,
+      icon: account.icon,
+      color: account.color,
+      openingBalance: num(account.openingBalance),
+      balance,
+    },
+    txs: page.items,
+    nextCursor: page.nextCursor,
+  };
+}
+
+async function getAccountBalance(
+  userId: string,
+  accountId: string,
+  openingBalance: number,
+) {
+  const [sourceGroups, incomingTransfer] = await Promise.all([
+    prisma.transaction.groupBy({
+      by: ["type"],
+      where: { userId, accountId },
+      _sum: { amount: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { userId, type: "TRANSFER", destinationAccountId: accountId },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  let income = 0;
+  let expense = 0;
+  let transferOut = 0;
+  for (const group of sourceGroups) {
+    const amount = num(group._sum.amount);
+    if (group.type === "INCOME") income += amount;
+    if (group.type === "EXPENSE") expense += amount;
+    if (group.type === "TRANSFER") transferOut += amount;
+  }
+  return openingBalance + income - expense - transferOut + num(incomingTransfer._sum.amount);
+}
+
+export type AccountHistoryItem = {
+  id: string;
+  type: "INCOME" | "EXPENSE" | "TRANSFER";
+  amount: number;
+  date: string;
+  notes: string;
+  category: { name: string; icon: string | null; color: string | null } | null;
+  counterparty: string;
+  direction: "in" | "out";
+};
+
+export type AccountHistoryPage = {
+  items: AccountHistoryItem[];
+  nextCursor: string | null;
+};
+
+export async function getAccountTransactionPage(
+  userId: string,
+  accountId: string,
+  cursor?: string | null,
+  pageSize = TRANSACTION_PAGE_SIZE,
+): Promise<AccountHistoryPage> {
   const rows = await prisma.transaction.findMany({
     where: {
       userId,
       OR: [{ accountId }, { destinationAccountId: accountId }],
     },
-    orderBy: { date: "desc" },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+    take: pageSize + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: { category: true, account: true, destinationAccount: true },
   });
 
-  const txs = rows.map((t) => {
+  const pageRows = rows.slice(0, pageSize);
+  const items = pageRows.map((t) => {
     const isIncomingTransfer = t.type === "TRANSFER" && t.destinationAccountId === accountId;
     return {
       id: t.id,
@@ -159,37 +349,23 @@ export async function getAccountWithHistory(userId: string, accountId: string) {
     };
   });
 
-  const balance = accountBalance(
-    accountId,
-    num(account.openingBalance),
-    rows.map((t) => ({
-      type: t.type,
-      amount: num(t.amount),
-      accountId: t.accountId,
-      destinationAccountId: t.destinationAccountId,
-    })),
-  );
-
   return {
-    account: {
-      id: account.id,
-      name: account.name,
-      icon: account.icon,
-      color: account.color,
-      openingBalance: num(account.openingBalance),
-      balance,
-    },
-    txs,
+    items,
+    nextCursor: rows.length > pageSize ? pageRows[pageRows.length - 1]?.id ?? null : null,
   };
 }
 
 export async function getCycleTotals(userId: string, cycleId: string) {
-  const txs = await prisma.transaction.findMany({ where: { userId, cycleId } });
+  const groups = await prisma.transaction.groupBy({
+    by: ["type"],
+    where: { userId, cycleId, type: { in: ["INCOME", "EXPENSE"] } },
+    _sum: { amount: true },
+  });
   let income = 0;
   let expense = 0;
-  for (const t of txs) {
-    if (t.type === "INCOME") income += num(t.amount);
-    if (t.type === "EXPENSE") expense += num(t.amount);
+  for (const group of groups) {
+    if (group.type === "INCOME") income += num(group._sum.amount);
+    if (group.type === "EXPENSE") expense += num(group._sum.amount);
   }
   return { income, expense, net: income - expense };
 }
@@ -199,10 +375,11 @@ export async function getTodaySpend(userId: string, cycleId: string) {
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
-  const txs = await prisma.transaction.findMany({
+  const total = await prisma.transaction.aggregate({
     where: { userId, cycleId, type: "EXPENSE", date: { gte: start, lt: end } },
+    _sum: { amount: true },
   });
-  return txs.reduce((s, t) => s + num(t.amount), 0);
+  return num(total._sum.amount);
 }
 
 /** Per-category spend for a cycle (EXPENSE only). */
@@ -286,22 +463,22 @@ export async function getCycleTrend(userId: string, count = 7) {
     windows.unshift(previousCycle(configs, windows[0]));
   }
 
-  // One ranged query for all expenses across the whole span, bucketed in JS.
-  const rangeStart = windows[0].start;
-  const rangeEnd = windows[windows.length - 1].end;
-  const txs = await prisma.transaction.findMany({
-    where: { userId, type: "EXPENSE", date: { gte: rangeStart, lt: rangeEnd } },
-    select: { date: true, amount: true },
+  const cycleViews = await Promise.all(
+    windows.map((window) => ensureCycleForDate(userId, window.start)),
+  );
+  const spendByCycle = await prisma.transaction.groupBy({
+    by: ["cycleId"],
+    where: { userId, type: "EXPENSE", cycleId: { in: cycleViews.map((c) => c.id) } },
+    _sum: { amount: true },
   });
+  const spendByCycleId = new Map(
+    spendByCycle.map((group) => [group.cycleId, num(group._sum.amount)]),
+  );
 
-  return windows.map((w) => {
-    let spend = 0;
-    for (const t of txs) {
-      if (t.date >= w.start && t.date < w.end) spend += num(t.amount);
-    }
+  return windows.map((w, index) => {
     return {
       month: w.start.toLocaleDateString("en-LK", { month: "short" }),
-      spend,
+      spend: spendByCycleId.get(cycleViews[index].id) ?? 0,
     };
   });
 }

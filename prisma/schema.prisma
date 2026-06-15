@@ -143,6 +143,11 @@ model Transaction {
   destinationAccount Account?     @relation("DestinationAccount", fields: [destinationAccountId], references: [id])
 
   @@index([userId, cycleId])
+  @@index([userId, cycleId, date, id])
+  @@index([userId, cycleId, type, categoryId])
+  @@index([userId, accountId, date, id])
+  @@index([userId, destinationAccountId, date, id])
+  @@index([userId, type, date])
   @@index([accountId])
 }
 

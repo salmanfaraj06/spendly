@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "./prisma";
 import { dueOccurrences } from "./recurrence-engine";
 import { currentCycle, ensureCycleForDate, previousCycleOf } from "./cycle-service";
+import { requireTransactionRefsOwnedByUser } from "./tenant-guard";
 
 const num = (d: { toNumber(): number } | null | undefined) =>
   d ? d.toNumber() : 0;
@@ -127,6 +128,7 @@ export async function confirmDueOccurrence(
   if (payload.type === "TRANSFER" && !payload.destinationAccountId) {
     throw new Error("Transfer requires a destination account");
   }
+  await requireTransactionRefsOwnedByUser(userId, payload);
 
   const cycle = await ensureCycleForDate(userId, dueDate);
   await prisma.$transaction(async (tx) => {

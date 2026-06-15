@@ -11,7 +11,7 @@ import {
   getTotalBalance,
   getCycleTotals,
   getTodaySpend,
-  getTransactions,
+  getRecentTransactions,
   getSpendByCategory,
   getBudgetReport,
   getCategories,
@@ -29,7 +29,7 @@ export default async function HomePage() {
       getTotalBalance(userId),
       getCycleTotals(userId, cycle.id),
       getTodaySpend(userId, cycle.id),
-      getTransactions(userId, cycle.id),
+      getRecentTransactions(userId, cycle.id, 5),
       getSpendByCategory(userId, cycle.id),
       getBudgetReport(userId, cycle.id),
       getCategories(userId),
@@ -58,7 +58,7 @@ export default async function HomePage() {
   const totalBudget = budgetReport.reduce((s, r) => s + r.budgetedLkr, 0);
   const budgetPct = totalBudget > 0 ? Math.round((totals.expense / totalBudget) * 100) : 0;
 
-  const recent = txs.slice(0, 5);
+  const recent = txs;
   const empty = txs.length === 0 && totalBalance === 0;
 
   return (
@@ -199,12 +199,12 @@ export default async function HomePage() {
                   const isTransfer = t.type === "TRANSFER";
                   return (
                     <li key={t.id} className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl text-lg" style={{ background: `${(t.category?.color ?? "#34d399")}22` }}>
-                        {isTransfer ? "🔄" : t.category?.icon ?? "💸"}
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl text-lg" style={{ background: `${(t.categoryColor ?? "#34d399")}22` }}>
+                        {isTransfer ? "🔄" : t.categoryIcon ?? "💸"}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{t.notes || (isTransfer ? "Transfer" : t.category?.name)}</p>
-                        <p className="text-xs text-text-dim">{isTransfer ? "Transfer" : t.category?.name} · {t.date}</p>
+                        <p className="truncate text-sm font-medium">{t.notes || (isTransfer ? "Transfer" : t.categoryName)}</p>
+                        <p className="text-xs text-text-dim">{isTransfer ? "Transfer" : t.categoryName} · {t.date}</p>
                       </div>
                       <p className={`text-sm font-semibold ${isIncome ? "text-accent" : isTransfer ? "text-text-muted" : ""}`}>
                         {isIncome ? "+" : isTransfer ? "" : "-"}{lkr(t.amount)}

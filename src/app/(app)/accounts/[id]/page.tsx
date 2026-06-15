@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card, HeroCard } from "@/components/ui";
+import { HeroCard } from "@/components/ui";
+import { AccountHistoryView } from "@/components/AccountHistoryView";
 import { lkr } from "@/lib/format";
 import { requireUserId } from "@/lib/auth";
 import { getAccountWithHistory } from "@/lib/queries";
@@ -14,14 +15,7 @@ export default async function AccountDetailPage({
   const { id } = await params;
   const data = await getAccountWithHistory(userId, id);
   if (!data) notFound();
-  const { account, txs } = data;
-
-  // group by date
-  const groups = new Map<string, typeof txs>();
-  for (const t of txs) {
-    if (!groups.has(t.date)) groups.set(t.date, []);
-    groups.get(t.date)!.push(t);
-  }
+  const { account, txs, nextCursor } = data;
 
   return (
     <>
@@ -38,37 +32,7 @@ export default async function AccountDetailPage({
         <p className="text-xs text-on-hero/70">Opening {lkr(account.openingBalance)}</p>
       </HeroCard>
 
-      {txs.length === 0 ? (
-        <Card><p className="text-sm text-text-muted">No transactions for this account yet.</p></Card>
-      ) : (
-        [...groups.entries()].map(([date, dayTxs]) => (
-          <div key={date} className="space-y-2">
-            <p className="px-1 text-xs font-medium uppercase tracking-wider text-text-dim">{date}</p>
-            <Card className="p-3">
-              <ul className="divide-y divide-border/50">
-                {dayTxs.map((t) => {
-                  const isIn = t.direction === "in";
-                  const isTransfer = t.type === "TRANSFER";
-                  return (
-                    <li key={t.id} className="flex items-center gap-3 py-2.5">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl text-lg" style={{ background: `${(t.category?.color ?? "#16a35a")}22` }}>
-                        {isTransfer ? "🔄" : t.category?.icon ?? "💸"}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{t.notes || (isTransfer ? `Transfer ${isIn ? "from" : "to"} ${t.counterparty}` : t.category?.name)}</p>
-                        <p className="text-xs text-text-dim">{isTransfer ? `${isIn ? "In from" : "Out to"} ${t.counterparty}` : t.category?.name}</p>
-                      </div>
-                      <p className={`text-sm font-semibold ${isIn ? "text-accent" : ""}`}>
-                        {isIn ? "+" : "-"}{lkr(t.amount)}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          </div>
-        ))
-      )}
+      <AccountHistoryView accountId={account.id} items={txs} nextCursor={nextCursor} />
     </>
   );
 }

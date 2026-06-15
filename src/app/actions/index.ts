@@ -9,6 +9,12 @@ import {
   skipDueOccurrence as skipDueOccurrenceService,
   type DueOccurrencePostInput,
 } from "@/lib/recurrence-service";
+import {
+  requireCategoryOwnedByUser,
+  requireCycleOwnedByUser,
+  requireTransactionRefsOwnedByUser,
+} from "@/lib/tenant-guard";
+import { getAccountTransactionPage, getTransactionPage } from "@/lib/queries";
 
 // ── Accounts ────────────────────────────────────────────────────────────
 export async function createAccount(input: {
@@ -141,10 +147,7 @@ export async function createTransaction(input: TxInput) {
   const userId = await requireUserId();
   const date = new Date(`${input.date}T00:00:00.000Z`);
   const cycle = await ensureCycleForDate(userId, date);
-
-  if (input.type === "TRANSFER" && !input.destinationAccountId) {
-    throw new Error("Transfer requires a destination account");
-  }
+  await requireTransactionRefsOwnedByUser(userId, input);
 
   // Single row models both legs of a transfer (source + destination);
   // BalanceEngine applies them atomically when deriving balances.
@@ -173,10 +176,7 @@ export async function updateTransaction(id: string, input: TxInput) {
   const userId = await requireUserId();
   const date = new Date(`${input.date}T00:00:00.000Z`);
   const cycle = await ensureCycleForDate(userId, date);
-
-  if (input.type === "TRANSFER" && !input.destinationAccountId) {
-    throw new Error("Transfer requires a destination account");
-  }
+  await requireTransactionRefsOwnedByUser(userId, input);
 
   await prisma.transaction.updateMany({
     where: { id, userId },
@@ -208,6 +208,11 @@ export async function deleteTransaction(id: string) {
   revalidatePath("/budget");
 }
 
+export async function loadTransactionPage(cycleId: string, cursor: string | null) {
+  const userId = await requireUserId();
+  return getTransactionPage(userId, cycleId, cursor);
+}
+
 // ── Recurring Transactions ──────────────────────────────────────────────
 function recurringData(input: RecurringInput) {
   if (input.type === "TRANSFER" && !input.destinationAccountId) {
@@ -236,6 +241,7 @@ function recurringData(input: RecurringInput) {
 
 export async function createRecurringTransaction(input: RecurringInput) {
   const userId = await requireUserId();
+  await requireTransactionRefsOwnedByUser(userId, input);
   await prisma.recurringTransaction.create({
     data: { userId, ...recurringData(input) },
   });
@@ -246,6 +252,7 @@ export async function createRecurringTransaction(input: RecurringInput) {
 
 export async function updateRecurringTransaction(id: string, input: RecurringInput) {
   const userId = await requireUserId();
+  await requireTransactionRefsOwnedByUser(userId, input);
   await prisma.recurringTransaction.updateMany({
     where: { id, userId },
     data: recurringData(input),
@@ -290,6 +297,7 @@ export async function skipRecurringOccurrence(
 // ── Budgets ──────────────────────────────────────────────────────────────
 export async function setBudgetTemplate(categoryId: string, amountLkr: number) {
   const userId = await requireUserId();
+  await requireCategoryOwnedByUser(userId, categoryId);
   await prisma.budgetTemplate.upsert({
     where: { userId_categoryId: { userId, categoryId } },
     create: { userId, categoryId, amountLkr },
@@ -304,7 +312,11 @@ export async function overrideCycleBudget(
   categoryId: string,
   amountLkr: number,
 ) {
-  await requireUserId();
+  const userId = await requireUserId();
+  await Promise.all([
+    requireCycleOwnedByUser(userId, cycleId),
+    requireCategoryOwnedByUser(userId, categoryId),
+  ]);
   await prisma.cycleBudget.upsert({
     where: { cycleId_categoryId: { cycleId, categoryId } },
     create: { cycleId, categoryId, amountLkr, isOverride: true },
@@ -339,6 +351,11 @@ export async function updateGoalProgress(
     data: { achievedAmountLkr, ...(status ? { status } : {}) },
   });
   revalidatePath("/goals");
+}
+
+export async function loadAccountHistoryPage(accountId: string, cursor: string | null) {
+  const userId = await requireUserId();
+  return getAccountTransactionPage(userId, accountId, cursor);
 }
 
 // ── Insights ─────────────────────────────────────────────────────────────
