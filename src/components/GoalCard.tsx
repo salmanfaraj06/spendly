@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Card, ProgressBar, Pill } from "./ui";
 import { Sheet, inputClass, labelClass } from "./Sheet";
 import { lkr } from "@/lib/format";
@@ -18,6 +19,7 @@ export function GoalCard({ goal }: { goal: GoalItem }) {
   const [open, setOpen] = useState(false);
   const [achieved, setAchieved] = useState(String(goal.achievedAmountLkr));
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   const pct = goal.targetAmountLkr > 0 ? Math.round((goal.achievedAmountLkr / goal.targetAmountLkr) * 100) : 0;
   const done = goal.status === "ACHIEVED";
@@ -26,6 +28,7 @@ export function GoalCard({ goal }: { goal: GoalItem }) {
   function save(status?: "ACTIVE" | "ACHIEVED" | "MISSED") {
     start(async () => {
       await updateGoalProgress(goal.id, parseFloat(achieved) || 0, status);
+      router.refresh();
       setOpen(false);
     });
   }

@@ -5,7 +5,9 @@ import {
   materialiseCycleBudgets,
   cycleBudgetReport,
 } from "./budget-engine";
-import { currentCycle, ensureCycleForDate } from "./cycle-service";
+import { currentCycle, ensureCycleForDate, previousCycleOf } from "./cycle-service";
+import { getDueOccurrences } from "./recurrence-service";
+import { cachedPerUser } from "./cache";
 
 const num = (d: { toNumber(): number } | null | undefined) =>
   d ? d.toNumber() : 0;
@@ -128,14 +130,18 @@ export async function getTotalBalance(userId: string) {
 }
 
 export async function getProfile(userId: string) {
-  return prisma.profile.findUnique({ where: { userId } });
+  return cachedPerUser(userId, "profile", () =>
+    prisma.profile.findUnique({ where: { userId } }),
+  );
 }
 
 export async function getCategories(userId: string) {
-  return prisma.category.findMany({
-    where: { userId },
-    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-  });
+  return cachedPerUser(userId, "categories", () =>
+    prisma.category.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    }),
+  );
 }
 
 /** Categories with their transaction counts — for the manage screen. */
@@ -245,11 +251,16 @@ export async function getRecentTransactions(
 
 /** A single account with its full transaction history (source or destination). */
 export async function getAccountWithHistory(userId: string, accountId: string) {
-  const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+  // The account lookup, balance aggregation, and first transaction page all key
+  // off (userId, accountId) — none depends on the others — so fire them together
+  // (1 phase, was 3). `balanceDelta` is the movement only (opening balance passed
+  // as 0); we add the real opening balance after confirming the account exists.
+  const [account, balanceDelta, page] = await Promise.all([
+    prisma.account.findFirst({ where: { id: accountId, userId } }),
+    getAccountBalance(userId, accountId, 0),
+    getAccountTransactionPage(userId, accountId),
+  ]);
   if (!account) return null;
-
-  const balance = await getAccountBalance(userId, accountId, num(account.openingBalance));
-  const page = await getAccountTransactionPage(userId, accountId);
 
   return {
     account: {
@@ -258,7 +269,7 @@ export async function getAccountWithHistory(userId: string, accountId: string) {
       icon: account.icon,
       color: account.color,
       openingBalance: num(account.openingBalance),
-      balance,
+      balance: num(account.openingBalance) + balanceDelta,
     },
     txs: page.items,
     nextCursor: page.nextCursor,
@@ -355,6 +366,48 @@ export async function getAccountTransactionPage(
   };
 }
 
+/**
+ * One fetch of a cycle's transactions, deriving totals, today's spend,
+ * spend-by-category and the recent list in memory. Replaces four separate
+ * round-trips (getCycleTotals + getTodaySpend + getSpendByCategory +
+ * getRecentTransactions) on the dashboard. A cycle holds ~one month of rows.
+ */
+export async function getCycleSnapshot(
+  userId: string,
+  cycleId: string,
+  recentLimit = 5,
+) {
+  const rows = await prisma.transaction.findMany({
+    where: { userId, cycleId },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+    include: txListInclude,
+  });
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  let income = 0;
+  let expense = 0;
+  let today = 0;
+  const spendByCat = new Map<string, number>();
+
+  for (const t of rows) {
+    const amt = num(t.amount);
+    const dateIso = t.date.toISOString().slice(0, 10);
+    if (t.type === "INCOME") income += amt;
+    else if (t.type === "EXPENSE") {
+      expense += amt;
+      if (dateIso === todayIso) today += amt;
+      if (t.categoryId) spendByCat.set(t.categoryId, (spendByCat.get(t.categoryId) ?? 0) + amt);
+    }
+  }
+
+  return {
+    totals: { income, expense, net: income - expense },
+    today,
+    spend: [...spendByCat.entries()].map(([categoryId, spentLkr]) => ({ categoryId, spentLkr })),
+    recent: rows.slice(0, recentLimit).map((t) => mapTransactionListItem(t as TxListRow)),
+  };
+}
+
 export async function getCycleTotals(userId: string, cycleId: string) {
   const groups = await prisma.transaction.groupBy({
     by: ["type"],
@@ -394,12 +447,18 @@ export async function getSpendByCategory(userId: string, cycleId: string) {
     .map((g) => ({ categoryId: g.categoryId as string, spentLkr: num(g._sum.amount) }));
 }
 
-/** Budget report for a cycle: templates + overrides materialised, joined to spend. */
-export async function getBudgetReport(userId: string, cycleId: string) {
+/** Budget report for a cycle: templates + overrides materialised, joined to spend.
+ *  Pass `precomputedSpend` to reuse a spend-by-category already loaded by the
+ *  caller (avoids a duplicate query — e.g. the Home dashboard). */
+export async function getBudgetReport(
+  userId: string,
+  cycleId: string,
+  precomputedSpend?: { categoryId: string; spentLkr: number }[],
+) {
   const [templates, overrides, spend, categories] = await Promise.all([
     prisma.budgetTemplate.findMany({ where: { userId } }),
     prisma.cycleBudget.findMany({ where: { cycleId } }),
-    getSpendByCategory(userId, cycleId),
+    precomputedSpend ?? getSpendByCategory(userId, cycleId),
     getCategories(userId),
   ]);
 
@@ -463,23 +522,21 @@ export async function getCycleTrend(userId: string, count = 7) {
     windows.unshift(previousCycle(configs, windows[0]));
   }
 
-  const cycleViews = await Promise.all(
-    windows.map((window) => ensureCycleForDate(userId, window.start)),
-  );
-  const spendByCycle = await prisma.transaction.groupBy({
-    by: ["cycleId"],
-    where: { userId, type: "EXPENSE", cycleId: { in: cycleViews.map((c) => c.id) } },
-    _sum: { amount: true },
+  // One ranged query over the whole span, bucketed into windows in memory —
+  // no per-cycle materialisation (avoids ~`count` extra round-trips by date).
+  const rangeStart = windows[0].start;
+  const rangeEnd = windows[windows.length - 1].end;
+  const txs = await prisma.transaction.findMany({
+    where: { userId, type: "EXPENSE", date: { gte: rangeStart, lt: rangeEnd } },
+    select: { date: true, amount: true },
   });
-  const spendByCycleId = new Map(
-    spendByCycle.map((group) => [group.cycleId, num(group._sum.amount)]),
-  );
 
-  return windows.map((w, index) => {
-    return {
-      month: w.start.toLocaleDateString("en-LK", { month: "short" }),
-      spend: spendByCycleId.get(cycleViews[index].id) ?? 0,
-    };
+  return windows.map((w) => {
+    let spend = 0;
+    for (const t of txs) {
+      if (t.date >= w.start && t.date < w.end) spend += num(t.amount);
+    }
+    return { month: w.start.toLocaleDateString("en-LK", { month: "short" }), spend };
   });
 }
 
@@ -497,4 +554,62 @@ export async function getCycleViewFor(
   if (!isoDate) return getCurrentCycleView(userId);
   const c = await ensureCycleForDate(userId, new Date(`${isoDate}T00:00:00.000Z`));
   return { id: c.id, startDate: c.startDate, endDate: c.endDate };
+}
+
+export type HomeDashboard = {
+  cycle: CycleView;
+  totals: { income: number; expense: number; net: number };
+  today: number;
+  spend: { categoryId: string; spentLkr: number }[];
+  recent: TransactionListItem[];
+  totalBalance: number;
+  budgetReport: Awaited<ReturnType<typeof getBudgetReport>>;
+  categories: Awaited<ReturnType<typeof getCategories>>;
+  trend: Awaited<ReturnType<typeof getCycleTrend>>;
+  dueOccurrences: Awaited<ReturnType<typeof getDueOccurrences>>;
+  profile: Awaited<ReturnType<typeof getProfile>>;
+  prevTotals: { income: number; expense: number; net: number };
+};
+
+/**
+ * Everything the Home dashboard renders, fetched in two round-trip phases:
+ *   A) resolve the current + previous cycle (cheap — cached configs, 1–2 lookups)
+ *   B) one parallel batch for all dependent reads.
+ *
+ * This is the single seam for the dashboard's data: the ordering lives here, not
+ * in the page, so adding a widget cannot silently re-introduce a serial `await`.
+ * `getBudgetReport` deliberately computes its own spend rather than reusing the
+ * snapshot's — that lets it run inside the batch (one extra groupBy, but in
+ * parallel, so zero wall-clock) instead of waiting on the snapshot first.
+ */
+export async function getHomeDashboard(userId: string): Promise<HomeDashboard> {
+  const cycle = await getCurrentCycleView(userId);
+  const prevCycle = await previousCycleOf(userId, cycle.startDate);
+
+  const [snapshot, totalBalance, budgetReport, categories, trend, dueOccurrences, profile, prevTotals] =
+    await Promise.all([
+      getCycleSnapshot(userId, cycle.id, 5),
+      getTotalBalance(userId),
+      getBudgetReport(userId, cycle.id),
+      getCategories(userId),
+      getCycleTrend(userId, 7),
+      getDueOccurrences(userId),
+      getProfile(userId),
+      getCycleTotals(userId, prevCycle.id),
+    ]);
+
+  return {
+    cycle,
+    totals: snapshot.totals,
+    today: snapshot.today,
+    spend: snapshot.spend,
+    recent: snapshot.recent,
+    totalBalance,
+    budgetReport,
+    categories,
+    trend,
+    dueOccurrences,
+    profile,
+    prevTotals,
+  };
 }

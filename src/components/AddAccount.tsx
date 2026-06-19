@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Sheet, inputClass, labelClass } from "./Sheet";
 import { createAccount } from "@/app/actions";
 
@@ -14,6 +15,7 @@ export function AddAccount() {
   const [color, setColor] = useState(COLORS[0]);
   const [opening, setOpening] = useState("");
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function submit() {
     if (!name.trim()) return;
@@ -24,6 +26,7 @@ export function AddAccount() {
         color,
         openingBalance: parseFloat(opening) || 0,
       });
+      router.refresh();
       setName("");
       setOpening("");
       setOpen(false);

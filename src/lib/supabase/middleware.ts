@@ -36,7 +36,8 @@ export async function updateSession(request: NextRequest) {
   const userId = data?.claims.sub;
 
   const { pathname } = request.nextUrl;
-  const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/auth");
+  const isAuthRoute =
+    pathname.startsWith("/login") || pathname.startsWith("/auth");
 
   if (!userId && !isAuthRoute) {
     const url = request.nextUrl.clone();

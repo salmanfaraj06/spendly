@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "./ui";
 import { inputClass, labelClass } from "./Sheet";
 import { updateCycleStartDay } from "@/app/actions";
@@ -15,10 +16,12 @@ export function CycleSettings({
   const [day, setDay] = useState(currentStartDay);
   const [saved, setSaved] = useState(false);
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function save() {
     start(async () => {
       await updateCycleStartDay(day);
+      router.refresh();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     });

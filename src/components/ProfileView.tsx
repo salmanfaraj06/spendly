@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "./ui";
 import { inputClass, labelClass } from "./Sheet";
 import { updateProfile } from "@/app/actions";
@@ -23,11 +24,13 @@ export function ProfileView({
   const [emoji, setEmoji] = useState(avatarEmoji);
   const [saved, setSaved] = useState(false);
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function save() {
     if (!name.trim() || !nick.trim()) return;
     start(async () => {
       await updateProfile({ fullName: name.trim(), nickname: nick.trim(), avatarEmoji: emoji });
+      router.refresh();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     });

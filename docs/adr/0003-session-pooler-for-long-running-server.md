@@ -4,7 +4,12 @@ Date: 2026-06-15
 
 ## Status
 
-Accepted
+Accepted. **Amended 2026-06-16:** production target is now Vercel **serverless**
+(`preferredRegion = "syd1"`), not a long-running server. Serverless must use the
+**transaction pooler (6543)** to avoid exhausting the session pooler's ~15
+connection cap; intra-region (syd1 ↔ Sydney DB) its per-query overhead is
+negligible. The session pooler (5432) remains correct only for local development
+far from the DB region. Set `DATABASE_URL` per environment — see `DEPLOYMENT.md`.
 
 ## Context
 

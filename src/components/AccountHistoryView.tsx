@@ -17,6 +17,14 @@ export function AccountHistoryView({
 }) {
   const [loadedItems, setLoadedItems] = useState(items);
   const [cursor, setCursor] = useState(nextCursor);
+  // Re-seed when the server streams a fresh first page (e.g. after a mutation
+  // calls router.refresh()) — useState ignores prop changes after mount.
+  const [seed, setSeed] = useState(items);
+  if (seed !== items) {
+    setSeed(items);
+    setLoadedItems(items);
+    setCursor(nextCursor);
+  }
   const [pending, startTransition] = useTransition();
 
   const groups = useMemo(() => {

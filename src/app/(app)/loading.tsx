@@ -1,16 +1,18 @@
-export default function AppLoading() {
+import { SkelHeader, SkelHero, SkelCard } from "@/components/skeletons";
+
+// Home dashboard skeleton (matches src/app/(app)/page.tsx).
+export default function HomeLoading() {
   return (
-    <div className="space-y-5 px-1 pt-2">
-      <div className="space-y-2">
-        <div className="h-3 w-24 animate-pulse rounded-full bg-surface-2" />
-        <div className="h-7 w-40 animate-pulse rounded-full bg-surface-2" />
-      </div>
-      <div className="h-36 animate-pulse rounded-[var(--radius-card)] bg-surface" />
+    <>
+      <SkelHeader />
+      <SkelHero />
       <div className="grid grid-cols-2 gap-4">
-        <div className="h-24 animate-pulse rounded-[var(--radius-card)] bg-surface" />
-        <div className="h-24 animate-pulse rounded-[var(--radius-card)] bg-surface" />
+        <SkelCard className="h-24" />
+        <SkelCard className="h-24" />
       </div>
-      <div className="h-28 animate-pulse rounded-[var(--radius-card)] bg-surface" />
-    </div>
+      <SkelCard className="h-28" />
+      <SkelCard className="h-32" />
+      <SkelCard className="h-40" />
+    </>
   );
 }

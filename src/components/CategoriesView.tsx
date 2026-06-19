@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "./ui";
 import { Sheet, inputClass, labelClass } from "./Sheet";
 import { createCategory, updateCategory, deleteCategory } from "@/app/actions";
@@ -74,12 +75,14 @@ function CategorySheet({
   const [color, setColor] = useState(initial?.color ?? COLORS[0]);
   const [confirming, setConfirming] = useState(false);
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function save() {
     if (!name.trim()) return;
     start(async () => {
       if (initial) await updateCategory(initial.id, { name, icon, color });
       else await createCategory({ name, icon, color });
+      router.refresh();
       onClose();
     });
   }
@@ -91,6 +94,7 @@ function CategorySheet({
     }
     start(async () => {
       await deleteCategory(initial.id);
+      router.refresh();
       onClose();
     });
   }

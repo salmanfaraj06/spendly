@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card } from "./ui";
 import { Sheet, inputClass, labelClass } from "./Sheet";
@@ -28,11 +29,13 @@ export function AccountCard({ account }: { account: Acc }) {
   const [opening, setOpening] = useState(String(account.openingBalance));
   const [confirming, setConfirming] = useState(false);
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function save() {
     if (!name.trim()) return;
     start(async () => {
       await updateAccount(account.id, { name, icon, color, openingBalance: parseFloat(opening) || 0 });
+      router.refresh();
       setOpen(false);
     });
   }
@@ -44,6 +47,7 @@ export function AccountCard({ account }: { account: Acc }) {
     }
     start(async () => {
       await deleteAccount(account.id);
+      router.refresh();
       setOpen(false);
     });
   }

@@ -1,12 +1,14 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "./ui";
 import { refreshInsights } from "@/app/actions";
 
 export function InsightsCard({ lines, delay = 0 }: { lines: string[] | null; delay?: number }) {
   const [pending, start] = useTransition();
+  const router = useRouter();
   const hasInsights = !!lines && lines.length > 0;
 
   return (
@@ -16,7 +18,7 @@ export function InsightsCard({ lines, delay = 0 }: { lines: string[] | null; del
           <span className="mr-1.5">✨</span>Smart Insights
         </p>
         <button
-          onClick={() => start(() => refreshInsights())}
+          onClick={() => start(async () => { await refreshInsights(); router.refresh(); })}
           disabled={pending}
           className="text-xs font-medium text-accent disabled:opacity-50"
         >

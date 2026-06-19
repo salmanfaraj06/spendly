@@ -41,6 +41,15 @@ export function TransactionsView({
 }) {
   const [loadedItems, setLoadedItems] = useState(items);
   const [cursor, setCursor] = useState(nextCursor);
+  // Re-seed pagination when the server streams a fresh first page (e.g. after a
+  // mutation calls router.refresh()). useState keeps its INITIAL value across
+  // re-renders, so a new `items` prop is otherwise silently ignored.
+  const [seed, setSeed] = useState(items);
+  if (seed !== items) {
+    setSeed(items);
+    setLoadedItems(items);
+    setCursor(nextCursor);
+  }
   const [filter, setFilter] = useState<Filter>("All");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<EditingTx | null>(null);

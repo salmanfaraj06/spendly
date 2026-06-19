@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "./prisma";
+import { cachedPerUser } from "./cache";
 import {
   resolveCycle,
   nextCycle as engineNext,
@@ -9,12 +10,18 @@ import {
   type FinanceCycle as EngineCycle,
 } from "./cycle-engine";
 
-/** Per-request memoised config rows — shared across every cycle lookup in one render. */
+/** Per-request memoised + cross-request cached config rows (rarely change).
+ *  Note: the Data Cache serialises Dates to strings, so we re-hydrate
+ *  `effectiveFrom` to a real Date for the downstream pure engine. */
 const loadConfigRows = cache(async (userId: string) => {
-  return prisma.cycleConfig.findMany({
-    where: { userId },
-    orderBy: { effectiveFrom: "asc" },
-  });
+  const rows = await cachedPerUser(userId, "cycles", () =>
+    prisma.cycleConfig.findMany({
+      where: { userId },
+      orderBy: { effectiveFrom: "asc" },
+      select: { id: true, startDay: true, effectiveFrom: true },
+    }),
+  );
+  return rows.map((r) => ({ ...r, effectiveFrom: new Date(r.effectiveFrom) }));
 });
 
 export async function loadConfigs(userId: string): Promise<CycleConfig[]> {

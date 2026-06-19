@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Sheet, inputClass, labelClass } from "./Sheet";
 import { setBudgetTemplate } from "@/app/actions";
 
@@ -11,11 +12,13 @@ export function SetBudget({ categories }: { categories: Category[] }) {
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function submit() {
     if (!categoryId || !parseFloat(amount)) return;
     start(async () => {
       await setBudgetTemplate(categoryId, parseFloat(amount));
+      router.refresh();
       setAmount("");
       setOpen(false);
     });

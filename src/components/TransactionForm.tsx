@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { inputClass, labelClass } from "./Sheet";
 import { useToast } from "./Toast";
 import {
@@ -53,6 +54,7 @@ export function TransactionForm({
   const [date, setDate] = useState(editing?.date ?? today());
   const [notes, setNotes] = useState(editing?.notes ?? "");
   const [pending, start] = useTransition();
+  const router = useRouter();
   const toast = useToast();
 
   const suggestions = categories.filter((c) =>
@@ -81,6 +83,7 @@ export function TransactionForm({
       };
       if (editing) await updateTransaction(editing.id, payload);
       else await createTransaction(payload);
+      router.refresh(); // pull the revalidated server render into the current route
       onDone();
     });
   }
@@ -99,12 +102,13 @@ export function TransactionForm({
     };
     start(async () => {
       await deleteTransaction(editing.id);
+      router.refresh();
       onDone();
       toast.show({
         message: "Transaction deleted",
         actionLabel: "Undo",
         onAction: () => {
-          void createTransaction(restore);
+          void createTransaction(restore).then(() => router.refresh());
         },
       });
     });

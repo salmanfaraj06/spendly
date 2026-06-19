@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Card, ProgressBar, Pill } from "./ui";
 import { Sheet, inputClass, labelClass } from "./Sheet";
 import { lkr } from "@/lib/format";
@@ -22,10 +23,12 @@ export function BudgetCard({ item, cycleId }: { item: BudgetItem; cycleId: strin
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(String(item.budgetedLkr));
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function save() {
     start(async () => {
       await overrideCycleBudget(cycleId, item.categoryId, parseFloat(amount) || 0);
+      router.refresh();
       setOpen(false);
     });
   }

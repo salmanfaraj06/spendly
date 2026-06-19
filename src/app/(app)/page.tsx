@@ -1,46 +1,30 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { Card, HeroCard, Pill, ProgressBar } from "@/components/ui";
 import { ProfileButton } from "@/components/ProfileButton";
 import { HomeInsights, InsightsSkeleton } from "@/components/HomeInsights";
 import { TrendChart, CategoryBars } from "@/components/charts";
-import { getDueOccurrences } from "@/lib/recurrence-service";
 import { lkr, lkrCompact, formatDate } from "@/lib/format";
 import { requireUserId } from "@/lib/auth";
-import {
-  getCurrentCycleView,
-  getTotalBalance,
-  getCycleTotals,
-  getTodaySpend,
-  getRecentTransactions,
-  getSpendByCategory,
-  getBudgetReport,
-  getCategories,
-  getCycleTrend,
-  getProfile,
-} from "@/lib/queries";
-import { previousCycleOf } from "@/lib/cycle-service";
+import { getHomeDashboard } from "@/lib/queries";
 
 export default async function HomePage() {
   const userId = await requireUserId();
-  const cycle = await getCurrentCycleView(userId);
+  const {
+    cycle,
+    totals,
+    today,
+    spend,
+    recent: txs,
+    totalBalance,
+    budgetReport,
+    categories,
+    trend,
+    dueOccurrences,
+    profile,
+    prevTotals,
+  } = await getHomeDashboard(userId);
 
-  const [totalBalance, totals, today, txs, spend, budgetReport, categories, prevCycle, trend, dueOccurrences] =
-    await Promise.all([
-      getTotalBalance(userId),
-      getCycleTotals(userId, cycle.id),
-      getTodaySpend(userId, cycle.id),
-      getRecentTransactions(userId, cycle.id, 5),
-      getSpendByCategory(userId, cycle.id),
-      getBudgetReport(userId, cycle.id),
-      getCategories(userId),
-      previousCycleOf(userId, cycle.startDate),
-      getCycleTrend(userId, 7),
-      getDueOccurrences(userId),
-    ]);
-
-  const profile = await getProfile(userId);
-
-  const prevTotals = await getCycleTotals(userId, prevCycle.id);
   const momPct =
     prevTotals.expense > 0
       ? Math.round(((totals.expense - prevTotals.expense) / prevTotals.expense) * 100)
@@ -56,7 +40,11 @@ export default async function HomePage() {
     .slice(0, 6);
 
   const totalBudget = budgetReport.reduce((s, r) => s + r.budgetedLkr, 0);
-  const budgetPct = totalBudget > 0 ? Math.round((totals.expense / totalBudget) * 100) : 0;
+  // Only spend in categories you've actually budgeted counts toward utilisation —
+  // matches the Budget page. Using total expenses would charge unbudgeted spend
+  // (e.g. groceries) against unrelated budgets (e.g. entertainment).
+  const budgetedSpend = budgetReport.reduce((s, r) => s + r.spentLkr, 0);
+  const budgetPct = totalBudget > 0 ? Math.round((budgetedSpend / totalBudget) * 100) : 0;
 
   const recent = txs;
   const empty = txs.length === 0 && totalBalance === 0;
@@ -96,14 +84,14 @@ export default async function HomePage() {
           <p className="mt-1 text-sm text-text-muted">
             Add an account, then log your first transaction. Your dashboard fills in as you go.
           </p>
-          <a href="/accounts" className="mt-3 inline-block rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-bg">
+          <Link href="/accounts" className="mt-3 inline-block rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-bg">
             Add an account
-          </a>
+          </Link>
         </Card>
       ) : (
         <>
           {dueOccurrences.length > 0 && (
-            <a href="/recurring/due">
+            <Link href="/recurring/due">
               <Card className="flex items-center justify-between border-accent/30 bg-accent/10" delay={0.05}>
                 <div>
                   <p className="text-sm font-semibold">{dueOccurrences.length} recurring due</p>
@@ -111,7 +99,7 @@ export default async function HomePage() {
                 </div>
                 <span className="text-text-dim">›</span>
               </Card>
-            </a>
+            </Link>
           )}
 
           <div className="grid grid-cols-2 gap-4">
@@ -160,7 +148,7 @@ export default async function HomePage() {
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-sm font-semibold">Budget Utilisation</p>
                 <span className="text-sm text-text-muted">
-                  {lkrCompact(totals.expense)} / {lkrCompact(totalBudget)}
+                  {lkrCompact(budgetedSpend)} / {lkrCompact(totalBudget)}
                 </span>
               </div>
               <ProgressBar pct={budgetPct} state={budgetPct > 100 ? "over" : budgetPct >= 80 ? "near" : "ok"} />
@@ -188,7 +176,7 @@ export default async function HomePage() {
           <Card delay={0.16}>
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold">Recent Transactions</p>
-              <a href="/transactions" className="text-xs font-medium text-accent">View all</a>
+              <Link href="/transactions" className="text-xs font-medium text-accent">View all</Link>
             </div>
             {recent.length === 0 ? (
               <p className="text-sm text-text-muted">No transactions yet this cycle.</p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Sheet, inputClass, labelClass } from "./Sheet";
 import { createGoal } from "@/app/actions";
 
@@ -9,11 +10,13 @@ export function AddGoal() {
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function submit() {
     if (!name.trim() || !parseFloat(target)) return;
     start(async () => {
       await createGoal({ name: name.trim(), targetAmountLkr: parseFloat(target) });
+      router.refresh();
       setName("");
       setTarget("");
       setOpen(false);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createRecurringTransaction, deleteRecurringTransaction, updateRecurringTransaction } from "@/app/actions";
 import { lkr } from "@/lib/format";
 import { Card } from "./ui";
@@ -124,6 +125,7 @@ function RecurringTemplateSheet({
   const [weekday, setWeekday] = useState(String(initial?.weekday ?? 1));
   const [anchorDate, setAnchorDate] = useState(initial?.anchorDate ?? today());
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function save() {
     const parsedAmount = parseFloat(amount);
@@ -147,6 +149,7 @@ function RecurringTemplateSheet({
     start(async () => {
       if (initial) await updateRecurringTransaction(initial.id, payload);
       else await createRecurringTransaction(payload);
+      router.refresh();
       onClose();
     });
   }
@@ -155,6 +158,7 @@ function RecurringTemplateSheet({
     if (!initial) return;
     start(async () => {
       await deleteRecurringTransaction(initial.id);
+      router.refresh();
       onClose();
     });
   }

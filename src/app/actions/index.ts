@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth";
+import { userTag } from "@/lib/cache";
 import { ensureCycleForDate, changeCycleStartDay } from "@/lib/cycle-service";
 import {
   confirmDueOccurrence as confirmDueOccurrenceService,
@@ -83,6 +84,7 @@ export async function findOrCreateCategory(name: string): Promise<string> {
   const created = await prisma.category.create({
     data: { userId, name: trimmed, icon: "🏷️", color: "#34d399", isDefault: false },
   });
+  revalidateTag(userTag(userId, "categories"));
   revalidatePath("/transactions");
   return created.id;
 }
@@ -96,6 +98,7 @@ export async function updateCategory(
     where: { id, userId },
     data: { name: input.name.trim(), icon: input.icon, color: input.color },
   });
+  revalidateTag(userTag(userId, "categories"));
   revalidatePath("/categories");
 }
 
@@ -105,6 +108,7 @@ export async function deleteCategory(id: string) {
   const cat = await prisma.category.findFirst({ where: { id, userId } });
   if (!cat || cat.isDefault) throw new Error("Default categories cannot be deleted");
   await prisma.category.deleteMany({ where: { id, userId, isDefault: false } });
+  revalidateTag(userTag(userId, "categories"));
   revalidatePath("/categories");
   revalidatePath("/transactions");
   revalidatePath("/budget");
@@ -122,6 +126,7 @@ export async function createCategory(input: { name: string; icon?: string; color
       isDefault: false,
     },
   });
+  revalidateTag(userTag(userId, "categories"));
   revalidatePath("/categories");
 }
 
@@ -380,6 +385,7 @@ export async function updateProfile(input: {
     create: { userId, ...input },
     update: input,
   });
+  revalidateTag(userTag(userId, "profile"));
   revalidatePath("/profile");
   revalidatePath("/");
 }
@@ -388,5 +394,6 @@ export async function updateProfile(input: {
 export async function updateCycleStartDay(startDay: number) {
   const userId = await requireUserId();
   await changeCycleStartDay(userId, startDay);
+  revalidateTag(userTag(userId, "cycles"));
   revalidatePath("/");
 }

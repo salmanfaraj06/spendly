@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { confirmRecurringOccurrence, skipRecurringOccurrence } from "@/app/actions";
 import { lkr } from "@/lib/format";
 import { Card } from "./ui";
@@ -35,6 +36,7 @@ export function DueOccurrencesView({
   const [editing, setEditing] = useState<DueOccurrence | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function key(o: DueOccurrence) {
     return `${o.recurringTransactionId}:${o.dueDate}`;
@@ -45,6 +47,7 @@ export function DueOccurrencesView({
     setPendingId(id);
     start(async () => {
       await confirmRecurringOccurrence(o.recurringTransactionId, o.dueDate);
+      router.refresh();
       setPendingId(null);
     });
   }
@@ -54,6 +57,7 @@ export function DueOccurrencesView({
     setPendingId(id);
     start(async () => {
       await skipRecurringOccurrence(o.recurringTransactionId, o.dueDate);
+      router.refresh();
       setPendingId(null);
     });
   }
@@ -137,6 +141,7 @@ function DueOccurrenceForm({
   const [categoryId, setCategoryId] = useState(occurrence.categoryId ?? "");
   const [notes, setNotes] = useState(occurrence.notes);
   const [pending, start] = useTransition();
+  const router = useRouter();
 
   function post() {
     const parsedAmount = parseFloat(amount);
@@ -151,6 +156,7 @@ function DueOccurrenceForm({
         categoryId: type === "TRANSFER" ? null : categoryId || null,
         notes,
       });
+      router.refresh();
       onDone();
     });
   }
