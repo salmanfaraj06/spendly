@@ -9,7 +9,9 @@ const outfit = Outfit({
   display: "swap",
 });
 
-export const preferredRegion = "syd1";
+// Co-located with the Supabase DB (ap-south-1 / Mumbai). Was "syd1" when the DB
+// lived in Sydney; the DB moved to Mumbai, so the serverless functions follow it.
+export const preferredRegion = "bom1";
 
 export const metadata: Metadata = {
   title: "Finance Tracker",

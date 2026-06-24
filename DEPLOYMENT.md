@@ -19,8 +19,10 @@ cross-user reference injection on writes is blocked by `src/lib/tenant-guard.ts`
 
 ## The one thing to get right: the database connection on Vercel
 
-`preferredRegion = "syd1"` means this deploys to **Vercel serverless** next to the
-Supabase Sydney database. Serverless spins up many short-lived function instances;
+`preferredRegion = "bom1"` (Mumbai) means this deploys to **Vercel serverless**
+co-located with the Supabase **ap-south-1 (Mumbai)** database. (It was `syd1`
+when the DB lived in Sydney; the DB moved to Mumbai, so the functions followed.)
+Serverless spins up many short-lived function instances;
 each opens its own DB connections. The **session pooler (port 5432) caps at ~15
 connections and will exhaust** under a dozen concurrent users.
 
@@ -32,10 +34,11 @@ DIRECT_URL   = postgresql://postgres.<ref>:<pw>@<region>.pooler.supabase.com:543
 NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, OPENAI_API_KEY = ...
 ```
 
-The ~800ms/query we measured on the transaction pooler was a Sri-Lanka→Sydney
-artifact; **intra-region (Vercel syd1 ↔ DB) it is single-digit milliseconds**, so
-the transaction pooler is both correct *and* fast in production. Keep the session
-pooler only for local development. (See `docs/adr/0003`.)
+The high per-query latency we measured on the transaction pooler was a
+distance artifact; **intra-region (Vercel bom1 ↔ Mumbai DB) it is single-digit
+milliseconds**, so the transaction pooler is both correct *and* fast in
+production. Keep the session pooler only for local development. (See
+`docs/adr/0003`.)
 
 ## Database migrations
 
